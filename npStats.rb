@@ -18,8 +18,6 @@
 # 
 # Configuration:
 # - StorageType: select iCloud (default) or Drobpox
-# - NumHeaderLines: number of lines at the start of a note file to regard as 'the top'
-#   Default is 2. Relevant when moving lines around.
 # - TagsToCount: array of tags to count
 # - Username: the username of the Dropbox/iCloud account to use
 #----------------------------------------------------------------------------------
@@ -31,7 +29,6 @@ require 'time'
 require 'etc'	# for login lookup, though currently not used
 
 # User-settable constants
-NumHeaderLines = 2 # suits my use, but probably wants to be 1 for most people
 StorageType = "iCloud"	# or Dropbox
 TagsToCount = ["#holiday", "#halfholiday", "#bankholiday", "#dayoff", "#preach", 
 	"#wedding", "#funeral", "#baptism", "#dedication", "#thanksgiving",
@@ -85,16 +82,13 @@ class NPCalendar
 		@isFuture = true	if (@filename[0..7] > DateTodayYYYYMMDD)
 #		puts "initialising #{@filename} #{isFuture}"
 		
-		# Open file and read in first NumHeaderLines
+		# Open file and read in
 		# NB: needs the encoding line when run from launchctl, otherwise you get US-ASCII invalid byte errors (basically the 'locale' settings are different)
-		c = 0
 		header = ""
 		File.open(@filename, "r", :encoding => 'utf-8') { |f| 
 			# Read through header lines
 			f.each_line { |line|
 				header += line
-				break if (c >= NumHeaderLines)
-				c += 1
 			}
 		}
 		# extract tags from lines 
