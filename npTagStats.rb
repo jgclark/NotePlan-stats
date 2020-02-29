@@ -1,7 +1,7 @@
 #!/usr/bin/ruby
 #----------------------------------------------------------------------------------
-# NotePlan Stats Summariser
-# (c) JGC, v1.0.1, 11.2.2020
+# NotePlan Tag Stats Summariser
+# (c) JGC, v1.0.2, 29.2.2020
 #----------------------------------------------------------------------------------
 # Script to give stats on various tags in NotePlan's daily calendar files.
 #
@@ -15,7 +15,8 @@
 # - #dayoff
 # - #training, #conference, #retreat
 # - #preach, #lead..., #wedding, #funeral, #baptism etc.
-# 
+# - etc.
+#
 # Configuration:
 # - StorageType: select iCloud (default) or Drobpox
 # - TagsToCount: array of tags to count
@@ -32,7 +33,8 @@ require 'etc'	# for login lookup, though currently not used
 StorageType = "iCloud"	# or Dropbox
 TagsToCount = ["#holiday", "#halfholiday", "#bankholiday", "#dayoff", "#preach", 
 	"#wedding", "#funeral", "#baptism", "#dedication", "#thanksgiving",
-	"#conference", "#training", "#retreat",
+	"#homevisit", "#conference", "#training", "#retreat",
+	"#parkrun", "#dogwalk", "#dogrun",
 	"#leadaaw", "#leadmw", "#leadmp", "#leadhc" ] # simple array of strings
 DateFormat = "%d.%m.%y"
 DateTimeFormat = "%e %b %Y %H:%M"
