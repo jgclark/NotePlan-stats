@@ -12,10 +12,10 @@
 #
 # It notices and summarises the following tags from the top of the file
 # - #holiday, #halfholiday, #bankholiday
-# - #dayoff
+# - #dayoff, #friends
 # - #training, #conference, #retreat
 # - #preach, #lead..., #wedding, #funeral, #baptism etc.
-# - etc.
+# - etc. etc.
 #
 # Configuration:
 # - StorageType: select iCloud (default) or Drobpox
@@ -31,9 +31,9 @@ require 'etc'	# for login lookup, though currently not used
 
 # User-settable constants
 StorageType = "iCloud"	# or Dropbox
-TagsToCount = ["#holiday", "#halfholiday", "#bankholiday", "#dayoff", "#preach", 
+TagsToCount = ["#holiday", "#halfholiday", "#bankholiday", "#dayoff", "#friends", "#preach", 
 	"#wedding", "#funeral", "#baptism", "#dedication", "#thanksgiving",
-	"#homevisit", "#conference", "#training", "#retreat",
+	"#welcome", "#homevisit", "#conference", "#training", "#retreat",
 	"#parkrun", "#dogwalk", "#dogrun",
 	"#leadaaw", "#leadmw", "#leadmp", "#leadhc" ] # simple array of strings
 DateFormat = "%d.%m.%y"
