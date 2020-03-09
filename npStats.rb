@@ -2,8 +2,8 @@
 # frozen_string_literal: true
 
 #-------------------------------------------------------------------------------
-# NotePlan Note Stats Summariser
-# (c) JGC, v1.0, 8.3.2020
+# NotePlan Task Stats Summariser
+# (c) JGC, v1.0.2, 9.3.2020
 #-------------------------------------------------------------------------------
 # Script to give stats on various tags in NotePlan's note and calendar files.
 # (Forking earlier npTagStats.rb script.)
@@ -19,6 +19,7 @@
 # - Username: the username of the Dropbox/iCloud account to use
 #-------------------------------------------------------------------------------
 # TODO:
+# - add more error handling
 #-------------------------------------------------------------------------------
 
 require 'date'
@@ -27,22 +28,22 @@ require 'etc' # for login lookup, though currently not used
 require 'colorize' # for coloured output using https://github.com/fazibear/colorize
 
 # User-settable constants
-StorageType = 'iCloud' # or Dropbox
-DateFormat = '%d.%m.%y'
-DateTimeFormat = '%e %b %Y %H:%M'
-Username = 'jonathan'
+STORAGE_TYPE = 'iCloud' # or Dropbox
+DATE_FORMAT = '%d.%m.%y'
+DATE_TIME_FORMAT = '%e %b %Y %H:%M'
+USERNAME = 'jonathan'
 
 # Other Constant Definitions
 TodaysDate = Date.today # can't work out why this needs to be a 'constant' to work -- something about visibility, I suppose
 DateTodayYYYYMMDD = TodaysDate.strftime('%Y%m%d')
-if StorageType == 'iCloud'
-  NPBaseDir = "/Users/#{Username}/Library/Mobile Documents/iCloud~co~noteplan~NotePlan/Documents" # for iCloud storage
+if STORAGE_TYPE == 'iCloud'
+  NP_BASE_DIR = "/Users/#{USERNAME}/Library/Mobile Documents/iCloud~co~noteplan~NotePlan/Documents" # for iCloud storage
 else
-  NPBaseDir = "/Users/#{Username}/Dropbox/Apps/NotePlan/Documents" # for Dropbox storage
+  NP_BASE_DIR = "/Users/#{USERNAME}/Dropbox/Apps/NotePlan/Documents" # for Dropbox storage
 end
-NPCalendarDir = "#{NPBaseDir}/Calendar"
-NPNoteDir = "#{NPBaseDir}/Notes"
-NPSummariesDir = "#{NPBaseDir}/Summaries"
+NP_CALENDAR_DIR = "#{NP_BASE_DIR}/Calendar"
+NP_NOTE_DIR = "#{NP_BASE_DIR}/Notes"
+NP_SUMMARIES_DIR = "#{NP_BASE_DIR}/Summaries"
 
 # Colours, using the colorization gem
 TotalColour = :light_yellow
@@ -113,8 +114,8 @@ class NPCalendar
   end
 end
 
+# NPNote Class reflects a stored NP note.
 class NPNote
-  # NPNote Class reflects a stored NP note.
   # Define the attributes that need to be visible outside the class instances
   attr_reader :id
   attr_reader :title
@@ -156,9 +157,7 @@ class NPNote
       # but override if #archive set, or complete date set
       @isActive = false   if (@metadataLine =~ /#archive/) || @completeDate
       # make cancelled if #cancelled or #someday flag set
-      if (@metadataLine =~ /#cancelled/) || (@metadataLine =~ /#someday/)
-        @isCancelled = true
-      end
+      @isCancelled = true  if (@metadataLine =~ /#cancelled/) || (@metadataLine =~ /#someday/)
 
       # Note if this is a #project or #goal
       @isProject = true if @metadataLine =~ /#project/
@@ -208,12 +207,12 @@ tof = tpf = tgf = 0
 #===============================================================================
 calFiles = [] # to hold all relevant calendar objects
 timeNow = Time.now
-timeNowFmt = timeNow.strftime(DateTimeFormat)
+timeNowFmt = timeNow.strftime(DATE_TIME_FORMAT)
 puts "Creating stats at #{timeNowFmt}:"
 
 n = 0 # number of notes/calendar entries to work on
 # @@@ could use error handling here
-Dir.chdir(NPCalendarDir)
+Dir.chdir(NP_CALENDAR_DIR)
 Dir.glob('*.txt').each do |this_file|
   calFiles[n] = NPCalendar.new(this_file, n)
   n += 1
@@ -229,17 +228,17 @@ if n.positive? # if we have some notes to work on ...
     tof += cal.future
   end
 else
-  puts "Warning: No matching files found.\n".colorize(WarningColour)
+  puts "Warning: No matching calendar files found.\n".colorize(WarningColour)
 end
 puts
 
 #=======================================================================================
 # Note stats
 #=======================================================================================
-Dir.chdir(NPNoteDir)
+Dir.chdir(NP_NOTE_DIR)
 notes = [] # read in all notes
 activeNotes = [] # list of ID of all active notes which are Goals
-archivedNotes = 0 # simple count of non-active notes
+nonActiveNotes = 0 # simple count of non-active notes
 
 # Read metadata for all note files in the NotePlan directory
 i = 0
@@ -249,33 +248,37 @@ Dir.glob('*.txt').each do |this_file|
     activeNotes.push(notes[i].id)
     i += 1
   else
-    archivedNotes += 1
+    nonActiveNotes += 1
   end
 end
 
 # Count open (overdue) tasks, open undated, waiting, done tasks, future tasks
 # broken down by Goals/Projects/Other.
-activeNotes.each do |n|
-  n = notes[n]
-  if n.isGoal
-    tgd += n.done
-    tgo += n.open
-    tgu += n.undated
-    tgw += n.waiting
-    tgf += n.future
-  elsif n.isProject
-    tpd += n.done
-    tpo += n.open
-    tpu += n.undated
-    tpw += n.waiting
-    tpf += n.future
-  else
-    tod += n.done
-    too += n.open
-    tou += n.undated
-    tow += n.waiting
-    tof += n.future
+if i.positive? # if we have some notes to work on ...
+  activeNotes.each do |nn|
+    n = notes[nn]
+    if n.isGoal
+      tgd += n.done
+      tgo += n.open
+      tgu += n.undated
+      tgw += n.waiting
+      tgf += n.future
+    elsif n.isProject
+      tpd += n.done
+      tpo += n.open
+      tpu += n.undated
+      tpw += n.waiting
+      tpf += n.future
+    else
+      tod += n.done
+      too += n.open
+      tou += n.undated
+      tow += n.waiting
+      tof += n.future
+    end
   end
+else
+  puts "Warning: No matching active note files found.\n".colorize(WarningColour)
 end
 td = tod + tpd + tgd
 to = too + tpo + tgo
@@ -293,11 +296,11 @@ puts "TOTAL\t#{td}\t#{to}\t#{tu}\t#{tw}\t#{tf}".colorize(TotalColour)
 
 # Write results to CSV file, appending
 output = format('%s,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d',
-                timeNowFmt, activeNotes.count, archivedNotes,
+                timeNowFmt, activeNotes.count, nonActiveNotes,
                 tgd, tgo, tgu, tgw, tgf,
                 tpd, tpo, tpu, tpw, tpf,
                 tod, too, tou, tow, tof,
                 td, to, tu, tw, tf)
-f = File.open(NPSummariesDir + '/task_stats.csv', 'a')
+f = File.open(NP_SUMMARIES_DIR + '/task_stats.csv', 'a')
 f.puts output
 f.close

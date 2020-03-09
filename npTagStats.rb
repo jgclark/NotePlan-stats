@@ -1,9 +1,7 @@
 #!/usr/bin/ruby
-# frozen_string_literal: true
-
 #-------------------------------------------------------------------------------
 # NotePlan Tag Stats Summariser
-# (c) JGC, v1.1, 8.3.2020
+# (c) JGC, v1.1.1, 9.3.2020
 #-------------------------------------------------------------------------------
 # Script to give stats on various tags in NotePlan's daily calendar files.
 #
