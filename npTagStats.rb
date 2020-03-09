@@ -32,26 +32,26 @@ require 'etc' # for login lookup, though currently not used
 require 'colorize' # for coloured output using https://github.com/fazibear/colorize
 
 # User-settable constants
-StorageType = "iCloud"	# or Dropbox
-TagsToCount = ["#holiday", "#halfholiday", "#bankholiday", "#dayoff", "#friends", "#preach", 
-	"#wedding", "#funeral", "#baptism", "#dedication", "#thanksgiving",
-	"#welcome", "#homevisit", "#conference", "#training", "#retreat",
-	"#parkrun", "#dogwalk", "#dogrun",
-	"#leadaaw", "#leadmw", "#leadmp", "#leadhc" ] # simple array of strings
-DateFormat = "%d.%m.%y"
-DateTimeFormat = "%e %b %Y %H:%M"
-Username = 'jonathan'	
+StorageType = 'iCloud'.freeze # or Dropbox
+TagsToCount = ['#holiday', '#halfholiday', '#bankholiday', '#dayoff', '#friends', '#preach',
+               '#wedding', '#funeral', '#baptism', '#dedication', '#thanksgiving',
+               '#welcome', '#homevisit', '#conference', '#training', '#retreat',
+               '#parkrun', '#dogwalk', '#dogrun',
+               '#leadaaw', '#leadmw', '#leadmp', '#leadhc'].freeze # simple array of strings
+DateFormat = '%d.%m.%y'.freeze
+DateTimeFormat = '%e %b %Y %H:%M'.freeze
+Username = 'jonathan'.freeze
 
 # Other Constant Definitions
 TodaysDate = Date.today # can't work out why this needs to be a 'constant' to work -- something about visibility, I suppose
 DateTodayYYYYMMDD = TodaysDate.strftime('%Y%m%d')
-if StorageType == 'iCloud'
-  NPBaseDir = "/Users/#{Username}/Library/Mobile Documents/iCloud~co~noteplan~NotePlan/Documents" # for iCloud storage
-else
-  NPBaseDir = "/Users/#{Username}/Dropbox/Apps/NotePlan/Documents" # for Dropbox storage
-end
-NPCalendarDir = "#{NPBaseDir}/Calendar"
-NPSummariesDir = "#{NPBaseDir}/Summaries"
+NPBaseDir = if StorageType == 'iCloud'
+              "/Users/#{Username}/Library/Mobile Documents/iCloud~co~noteplan~NotePlan/Documents" # for iCloud storage
+            else
+              "/Users/#{Username}/Dropbox/Apps/NotePlan/Documents" # for Dropbox storage
+            end
+NPCalendarDir = "#{NPBaseDir}/Calendar".freeze
+NPSummariesDir = "#{NPBaseDir}/Summaries".freeze
 
 # Colours, using the colorization gem
 TotalColour = :light_yellow
@@ -108,13 +108,7 @@ n = 0 # number of notes/calendar entries to work on
 calFiles = [] # to hold all relevant calendar objects
 
 # Check if we have a given argument
-if ARGV[0]
-  # We have a year given, so find calendar filenames starting with it.
-  theYear = ARGV[0]
-else
-  # We have no year given, so find calendar files from just this current year
-  theYear = thisYear
-end
+theYear = ARGV[0] || thisYear
 puts "Creating stats at #{timeNowFmt} for #{theYear}:"
 begin
   Dir.chdir(NPCalendarDir)

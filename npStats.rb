@@ -36,11 +36,11 @@ USERNAME = 'jonathan'
 # Other Constant Definitions
 TodaysDate = Date.today # can't work out why this needs to be a 'constant' to work -- something about visibility, I suppose
 DateTodayYYYYMMDD = TodaysDate.strftime('%Y%m%d')
-if STORAGE_TYPE == 'iCloud'
-  NP_BASE_DIR = "/Users/#{USERNAME}/Library/Mobile Documents/iCloud~co~noteplan~NotePlan/Documents" # for iCloud storage
-else
-  NP_BASE_DIR = "/Users/#{USERNAME}/Dropbox/Apps/NotePlan/Documents" # for Dropbox storage
-end
+NP_BASE_DIR = if STORAGE_TYPE == 'iCloud'
+                "/Users/#{USERNAME}/Library/Mobile Documents/iCloud~co~noteplan~NotePlan/Documents" # for iCloud storage
+              else
+                "/Users/#{USERNAME}/Dropbox/Apps/NotePlan/Documents" # for Dropbox storage
+              end
 NP_CALENDAR_DIR = "#{NP_BASE_DIR}/Calendar"
 NP_NOTE_DIR = "#{NP_BASE_DIR}/Notes"
 NP_SUMMARIES_DIR = "#{NP_BASE_DIR}/Summaries"
