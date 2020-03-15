@@ -3,10 +3,10 @@
 
 #-------------------------------------------------------------------------------
 # NotePlan Task Stats Summariser
-# (c) JGC, v1.0.3, 14.3.2020
+# (c) JGC, v1.1.0, 15.3.2020
 #-------------------------------------------------------------------------------
 # Script to give stats on various tags in NotePlan's note and calendar files.
-# (Forking earlier npTagStats.rb script.)
+# Also copes with notes in sub-directories (added in NotePlan v2.5).
 #
 # It finds and summarises todos/tasks in note and calendar files:
 # - only covers active notes (not archived or cancelled)
@@ -18,15 +18,12 @@
 # - StorageType: select iCloud (default) or Drobpox
 # - Username: the username of the Dropbox/iCloud account to use
 #-------------------------------------------------------------------------------
-# TODO:
-# * [ ] add ability to find and review notes in folders (from NP v2.5)
-# * [ ] add more error handling
-#-------------------------------------------------------------------------------
 
 require 'date'
 require 'time'
 require 'etc' # for login lookup, though currently not used
 require 'colorize' # for coloured output using https://github.com/fazibear/colorize
+require 'optparse'
 
 # User-settable constants
 STORAGE_TYPE = 'iCloud' # or Dropbox
@@ -147,7 +144,7 @@ class NPNote
     # initialise other variables (that don't need to persist with the class instance)
     headerLine = @metadataLine = nil
 
-    # puts "  Initializing NPNote for #{this_file}"
+    puts "  Initializing NPNote for #{this_file}" if $verbose
     # Open file and read the first two lines
     File.open(this_file) do |f|
       headerLine = f.readline
@@ -199,11 +196,15 @@ end
 # Setup program options
 options = {}
 opt_parser = OptionParser.new do |opts|
-  opts.banner = 'Usage: npStats.rb [options] year'
+  opts.banner = 'Usage: npStats.rb [options]'
   opts.separator ''
-  options[:verbose] = 0
+  # options[:verbose] = 0
+  # options[:no_file] = 0
   opts.on('-v', '--verbose', 'Show information as I work') do
     options[:verbose] = 1
+  end
+  opts.on('-n', '--nofile', 'Do not write summary to file') do
+    options[:no_file] = 1
   end
   opts.on('-h', '--help', 'Show help') do
     puts opts
@@ -212,6 +213,8 @@ opt_parser = OptionParser.new do |opts|
 end
 opt_parser.parse! # parse out options, leaving file patterns to process
 $verbose = options[:verbose]
+# puts options
+# exit
 
 # counts open (overdue) tasks, open undated, waiting, done tasks, future tasks
 # breaks down by Goals/Projects/Other
@@ -230,11 +233,14 @@ timeNowFmt = timeNow.strftime(DATE_TIME_FORMAT)
 puts "Creating stats at #{timeNowFmt}:"
 
 n = 0 # number of notes/calendar entries to work on
-# @@@ could use error handling here
-Dir.chdir(NP_CALENDAR_DIR)
-Dir.glob('*.txt').each do |this_file|
-  calFiles[n] = NPCalendar.new(this_file, n)
-  n += 1
+begin
+  Dir.chdir(NP_CALENDAR_DIR)
+  Dir.glob('*.txt').each do |this_file|
+    calFiles[n] = NPCalendar.new(this_file, n)
+    n += 1
+  end
+rescue StandardError => e
+  puts "ERROR: Hit #{e.exception.message} when reading calendar file #{this_file}".colorize(WarningColour)
 end
 
 if n.positive? # if we have some notes to work on ...
@@ -254,7 +260,6 @@ puts
 #=======================================================================================
 # Note stats
 #=======================================================================================
-Dir.chdir(NP_NOTE_DIR)
 notes = [] # read in all notes
 activeNotes = [] # list of ID of all active notes which are Goals
 nonActiveNotes = 0 # simple count of non-active notes
@@ -262,14 +267,19 @@ nonActiveNotes = 0 # simple count of non-active notes
 # Read metadata for all note files in the NotePlan directory
 # (and sub-directories from v2.5)
 i = 0
-Dir.glob('**/*.txt').each do |this_file|
-  notes[i] = NPNote.new(this_file, i)
-  if notes[i].isActive && !notes[i].isCancelled
-    activeNotes.push(notes[i].id)
-    i += 1
-  else
-    nonActiveNotes += 1
+begin
+  Dir.chdir(NP_NOTE_DIR)
+  Dir.glob('**/*.txt').each do |this_file|
+    notes[i] = NPNote.new(this_file, i)
+    if notes[i].isActive && !notes[i].isCancelled
+      activeNotes.push(notes[i].id)
+      i += 1
+    else
+      nonActiveNotes += 1
+    end
   end
+rescue StandardError => e
+  puts "ERROR: Hit #{e.exception.message} when reading note file #{this_file}".colorize(WarningColour)
 end
 
 # Count open (overdue) tasks, open undated, waiting, done tasks, future tasks
@@ -314,13 +324,15 @@ puts "Project\t#{tpd}\t#{tpo}\t#{tpu}\t#{tpw}\t#{tpf}"
 puts "Other\t#{tod}\t#{too}\t#{tou}\t#{tow}\t#{tof}"
 puts "TOTAL\t#{td}\t#{to}\t#{tu}\t#{tw}\t#{tf}".colorize(TotalColour)
 
-# Write results to CSV file, appending
+# Append results to CSV file (unless --nofile option given)
+return unless options[:no_file].nil?
+
 output = format('%s,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d',
-                timeNowFmt, activeNotes.count, nonActiveNotes,
-                tgd, tgo, tgu, tgw, tgf,
-                tpd, tpo, tpu, tpw, tpf,
-                tod, too, tou, tow, tof,
-                td, to, tu, tw, tf)
+              timeNowFmt, activeNotes.count, nonActiveNotes,
+              tgd, tgo, tgu, tgw, tgf,
+              tpd, tpo, tpu, tpw, tpf,
+              tod, too, tou, tow, tof,
+              td, to, tu, tw, tf)
 f = File.open(NP_SUMMARIES_DIR + '/task_stats.csv', 'a')
 f.puts output
 f.close
