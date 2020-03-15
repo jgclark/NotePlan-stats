@@ -78,7 +78,7 @@ class NPCalendar
 
     # mark this as a future date if the filename YYYYMMDD part as a string is greater than DateToday in YYYYMMDD format
     @isFuture = true if @filename[0..7] > DATE_TODAY_YYYYMMDD
-    #    puts "initialising #{@filename} #{isFuture}"
+    puts "initialising #{@filename} #{isFuture}" if $verbose
 
     # Open file and read in
     # NB: needs the encoding line when run from launchctl, otherwise you get US-ASCII invalid byte errors (basically the 'locale' settings are different)
@@ -195,6 +195,24 @@ end
 #===============================================================================
 # Main logic
 #===============================================================================
+
+# Setup program options
+options = {}
+opt_parser = OptionParser.new do |opts|
+  opts.banner = 'Usage: npStats.rb [options] year'
+  opts.separator ''
+  options[:verbose] = 0
+  opts.on('-v', '--verbose', 'Show information as I work') do
+    options[:verbose] = 1
+  end
+  opts.on('-h', '--help', 'Show help') do
+    puts opts
+    exit
+  end
+end
+opt_parser.parse! # parse out options, leaving file patterns to process
+$verbose = options[:verbose]
+
 # counts open (overdue) tasks, open undated, waiting, done tasks, future tasks
 # breaks down by Goals/Projects/Other
 tod = tpd = tgd = 0
@@ -242,8 +260,9 @@ activeNotes = [] # list of ID of all active notes which are Goals
 nonActiveNotes = 0 # simple count of non-active notes
 
 # Read metadata for all note files in the NotePlan directory
+# (and sub-directories from v2.5)
 i = 0
-Dir.glob('*.txt').each do |this_file|
+Dir.glob('**/*.txt').each do |this_file|
   notes[i] = NPNote.new(this_file, i)
   if notes[i].isActive && !notes[i].isCancelled
     activeNotes.push(notes[i].id)
