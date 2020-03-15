@@ -3,7 +3,7 @@
 
 #-------------------------------------------------------------------------------
 # NotePlan Task Stats Summariser
-# (c) JGC, v1.0.2, 9.3.2020
+# (c) JGC, v1.0.3, 14.3.2020
 #-------------------------------------------------------------------------------
 # Script to give stats on various tags in NotePlan's note and calendar files.
 # (Forking earlier npTagStats.rb script.)
@@ -19,7 +19,8 @@
 # - Username: the username of the Dropbox/iCloud account to use
 #-------------------------------------------------------------------------------
 # TODO:
-# - add more error handling
+# * [ ] add ability to find and review notes in folders (from NP v2.5)
+# * [ ] add more error handling
 #-------------------------------------------------------------------------------
 
 require 'date'
@@ -34,8 +35,8 @@ DATE_TIME_FORMAT = '%e %b %Y %H:%M'
 USERNAME = 'jonathan'
 
 # Other Constant Definitions
-TodaysDate = Date.today # can't work out why this needs to be a 'constant' to work -- something about visibility, I suppose
-DateTodayYYYYMMDD = TodaysDate.strftime('%Y%m%d')
+TODAYS_DATE = Date.today # can't work out why this needs to be a 'constant' to work -- something about visibility, I suppose
+DATE_TODAY_YYYYMMDD = TODAYS_DATE.strftime('%Y%m%d')
 NP_BASE_DIR = if STORAGE_TYPE == 'iCloud'
                 "/Users/#{USERNAME}/Library/Mobile Documents/iCloud~co~noteplan~NotePlan/Documents" # for iCloud storage
               else
@@ -76,7 +77,7 @@ class NPCalendar
     header = ''
 
     # mark this as a future date if the filename YYYYMMDD part as a string is greater than DateToday in YYYYMMDD format
-    @isFuture = true if @filename[0..7] > DateTodayYYYYMMDD
+    @isFuture = true if @filename[0..7] > DATE_TODAY_YYYYMMDD
     #    puts "initialising #{@filename} #{isFuture}"
 
     # Open file and read in
@@ -95,7 +96,7 @@ class NPCalendar
             scheduledDate = nil
             line.scan(/>(\d\d\d\d\-\d\d-\d\d)/) { |m| scheduledDate = Date.parse(m.join) }
             if !scheduledDate.nil?
-              if scheduledDate > TodaysDate
+              if scheduledDate > TODAYS_DATE
                 @future += 1 # count this as future
               else
                 @open += 1 # count this as dated open (overdue)
@@ -174,7 +175,7 @@ class NPNote
             scheduledDate = nil
             line.scan(/>(\d\d\d\d\-\d\d-\d\d)/) { |m| scheduledDate = Date.parse(m.join) }
             if !scheduledDate.nil?
-              if scheduledDate > TodaysDate
+              if scheduledDate > TODAYS_DATE
                 @future += 1 # count this as future
               else
                 @open += 1 # count this as dated open (overdue)

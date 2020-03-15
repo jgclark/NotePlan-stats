@@ -1,5 +1,8 @@
 {
   "solargraph.formatting": true,
-  "solargraph.references": false,
-  "solargraph.autoformat": true
+  "solargraph.autoformat": true,
+  "solargraph.logLevel": "info",
+  "solargraph.diagnostics": true,
+  "editor.tabSize": 2,
+  "editor.tabCompletion": "on"
 }

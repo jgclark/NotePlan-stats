@@ -1,7 +1,7 @@
 #!/usr/bin/ruby
 #-------------------------------------------------------------------------------
 # NotePlan Tag Stats Summariser
-# (c) JGC, v1.1.1, 9.3.2020
+# (c) JGC, v1.1.2, 15.3.2020
 #-------------------------------------------------------------------------------
 # Script to give stats on various tags in NotePlan's daily calendar files.
 #
@@ -32,26 +32,26 @@ require 'etc' # for login lookup, though currently not used
 require 'colorize' # for coloured output using https://github.com/fazibear/colorize
 
 # User-settable constants
-StorageType = 'iCloud'.freeze # or Dropbox
-TagsToCount = ['#holiday', '#halfholiday', '#bankholiday', '#dayoff', '#friends', '#preach',
-               '#wedding', '#funeral', '#baptism', '#dedication', '#thanksgiving',
-               '#welcome', '#homevisit', '#conference', '#training', '#retreat',
-               '#parkrun', '#dogwalk', '#dogrun',
-               '#leadaaw', '#leadmw', '#leadmp', '#leadhc'].freeze # simple array of strings
-DateFormat = '%d.%m.%y'.freeze
-DateTimeFormat = '%e %b %Y %H:%M'.freeze
-Username = 'jonathan'.freeze
+STORAGE_TYPE = 'iCloud'.freeze # or Dropbox
+TAGS_TO_COUNT = ['#holiday', '#halfholiday', '#bankholiday', '#dayoff', '#friends', '#preach',
+                 '#wedding', '#funeral', '#baptism', '#dedication', '#thanksgiving',
+                 '#welcome', '#homevisit', '#conference', '#training', '#retreat',
+                 '#parkrun', '#dogwalk', '#dogrun',
+                 '#leadaaw', '#leadmw', '#leadmp', '#leadhc'].freeze # simple array of strings
+DATE_FORMAT = '%d.%m.%y'.freeze
+DATE_TIME_FORMAT = '%e %b %Y %H:%M'.freeze
+USERNAME = 'jonathan'.freeze
 
 # Other Constant Definitions
-TodaysDate = Date.today # can't work out why this needs to be a 'constant' to work -- something about visibility, I suppose
-DateTodayYYYYMMDD = TodaysDate.strftime('%Y%m%d')
-NPBaseDir = if StorageType == 'iCloud'
-              "/Users/#{Username}/Library/Mobile Documents/iCloud~co~noteplan~NotePlan/Documents" # for iCloud storage
-            else
-              "/Users/#{Username}/Dropbox/Apps/NotePlan/Documents" # for Dropbox storage
+TODAYS_DATE = Date.today # can't work out why this needs to be a 'constant' to work -- something about visibility, I suppose
+DATE_TODAY_YYYYMMDD = TODAYS_DATE.strftime('%Y%m%d')
+NP_BASE_DIR = if STORAGE_TYPE == 'iCloud'
+                "/Users/#{USERNAME}/Library/Mobile Documents/iCloud~co~noteplan~NotePlan/Documents" # for iCloud storage
+              else
+                "/Users/#{USERNAME}/Dropbox/Apps/NotePlan/Documents" # for Dropbox storage
             end
-NPCalendarDir = "#{NPBaseDir}/Calendar".freeze
-NPSummariesDir = "#{NPBaseDir}/Summaries".freeze
+NP_CAL_DIR = "#{NP_BASE_DIR}/Calendar".freeze
+NP_SUMM_DIR = "#{NP_BASE_DIR}/Summaries".freeze
 
 # Colours, using the colorization gem
 TotalColour = :light_yellow
@@ -79,7 +79,7 @@ class NPCalendar
     @isFuture = false
 
     # mark this as a future date if the filename YYYYMMDD part as a string is greater than DateToday in YYYYMMDD format
-    @isFuture = true if @filename[0..7] > DateTodayYYYYMMDD
+    @isFuture = true if @filename[0..7] > DATE_TODAY_YYYYMMDD
     # puts "initialising #{@filename} #{isFuture}"
 
     # Open file and read in
@@ -102,7 +102,7 @@ end
 # Main logic
 #=======================================================================================
 timeNow = Time.now
-timeNowFmt = timeNow.strftime(DateTimeFormat)
+timeNowFmt = timeNow.strftime(DATE_TIME_FORMAT)
 thisYear = timeNow.strftime('%Y')
 n = 0 # number of notes/calendar entries to work on
 calFiles = [] # to hold all relevant calendar objects
@@ -111,7 +111,7 @@ calFiles = [] # to hold all relevant calendar objects
 theYear = ARGV[0] || thisYear
 puts "Creating stats at #{timeNowFmt} for #{theYear}:"
 begin
-  Dir.chdir(NPCalendarDir)
+  Dir.chdir(NP_CAL_DIR)
   Dir.glob("#{theYear}*.txt").each do |this_file|
     calFiles[n] = NPCalendar.new(this_file, n)
     n += 1
@@ -124,7 +124,7 @@ end
 counts = []
 futureCounts = []
 i = 0
-TagsToCount.each do |_t|
+TAGS_TO_COUNT.each do |_t|
   counts[i] = futureCounts[i] = 0
   i += 1
 end
@@ -136,7 +136,7 @@ if n.positive? # if we have some notes to work on ...
   calFiles.each do |cal|
     # puts "  Scanning file #{cal.filename}: #{cal.tags}"
     i = 0
-    TagsToCount.each do |t|
+    TAGS_TO_COUNT.each do |t|
       if cal.tags =~ /#{t}/i # case-insensitive
         if cal.isFuture
           futureCounts[i] = futureCounts[i] + 1
@@ -156,7 +156,7 @@ if n.positive? # if we have some notes to work on ...
   # Write out the counts to screen
   i = 0
   puts "\t\tPast\tFuture\tfor #{theYear}".colorize(TotalColour)
-  TagsToCount.each do |t|
+  TAGS_TO_COUNT.each do |t|
     printf("%-15s\t%3d\t%3d\n", t, counts[i], futureCounts[i])
     # puts "#{t}\t#{counts[i]}\t#{futureCounts[i]}"
     i += 1
@@ -164,10 +164,10 @@ if n.positive? # if we have some notes to work on ...
   printf("(Days found    \t%3d\t%3d)\n", days, futureDays)
 
   # Write out to a file (replacing any existing one)
-  f = File.open(NPSummariesDir + '/' + theYear + '_tag_stats.csv', 'w')
+  f = File.open(NP_SUMM_DIR + '/' + theYear + '_tag_stats.csv', 'w')
   i = 0
   f.puts "Tag,Past,Future,#{timeNowFmt}"
-  TagsToCount.each do |t|
+  TAGS_TO_COUNT.each do |t|
     f.printf("%s,%d,%d\n", t, counts[i], futureCounts[i])
     i += 1
   end

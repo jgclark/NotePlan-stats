@@ -59,3 +59,4 @@ build-iPhoneSimulator/
 # .rubocop-https?--*
 .vscode/settings.json
 *.yml
+.vscode/settings.json
