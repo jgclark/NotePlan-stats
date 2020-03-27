@@ -1,6 +1,4 @@
 #!/usr/bin/ruby
-# frozen_string_literal: true
-
 #-------------------------------------------------------------------------------
 # NotePlan Task Stats Summariser
 # (c) JGC, v1.2.0, 19.3.2020
@@ -30,10 +28,10 @@ require 'colorize' # for coloured output using https://github.com/fazibear/color
 require 'optparse'
 
 # User-settable constants
-STORAGE_TYPE = 'iCloud' # or Dropbox
-DATE_FORMAT = '%d.%m.%y'
-DATE_TIME_FORMAT = '%e %b %Y %H:%M'
-USERNAME = 'jonathan'
+STORAGE_TYPE = 'iCloud'.freeze # or Dropbox
+DATE_FORMAT = '%d.%m.%y'.freeze
+DATE_TIME_FORMAT = '%e %b %Y %H:%M'.freeze
+USERNAME = 'jonathan'.freeze
 
 # Other Constant Definitions
 TODAYS_DATE = Date.today # can't work out why this needs to be a 'constant' to work -- something about visibility, I suppose
@@ -43,9 +41,9 @@ NP_BASE_DIR = if STORAGE_TYPE == 'iCloud'
               else
                 "/Users/#{USERNAME}/Dropbox/Apps/NotePlan/Documents" # for Dropbox storage
               end
-NP_CALENDAR_DIR = "#{NP_BASE_DIR}/Calendar"
-NP_NOTE_DIR = "#{NP_BASE_DIR}/Notes"
-NP_SUMMARIES_DIR = "#{NP_BASE_DIR}/Summaries"
+NP_CALENDAR_DIR = "#{NP_BASE_DIR}/Calendar".freeze
+NP_NOTE_DIR = "#{NP_BASE_DIR}/Notes".freeze
+NP_SUMMARIES_DIR = "#{NP_BASE_DIR}/Summaries".freeze
 
 # Colours, using the colorization gem
 TotalColour = :light_yellow
