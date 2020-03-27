@@ -1,11 +1,9 @@
 #!/usr/bin/ruby
-# frozen_string_literal: true
-
 #-------------------------------------------------------------------------------
 # NotePlan Task Stats Summariser
 # (c) JGC, v1.1.0, 15.3.2020
 #-------------------------------------------------------------------------------
-# Script to give stats on various tags in NotePlan's note and calendar files.
+# Script to give stats on the tasks in NotePlan's note and calendar files.
 # Also copes with notes in sub-directories (added in NotePlan v2.5).
 #
 # It finds and summarises todos/tasks in note and calendar files:
@@ -18,6 +16,7 @@
 # - StorageType: select iCloud (default) or Drobpox
 # - Username: the username of the Dropbox/iCloud account to use
 #-------------------------------------------------------------------------------
+# test
 
 require 'date'
 require 'time'
