@@ -3,10 +3,11 @@
 
 #-------------------------------------------------------------------------------
 # NotePlan Task Stats Summariser
-# (c) JGC, v1.1.0, 15.3.2020
+# (c) JGC, v1.2.0, 19.3.2020
 #-------------------------------------------------------------------------------
 # Script to give stats on various tags in NotePlan's note and calendar files.
-# Also copes with notes in sub-directories (added in NotePlan v2.5).
+# From NotePlan v2.5 it also covers notes in sub-directories, but ignores notes
+# in the special @Archive and @Trash sub-directories (or others beginning @).
 #
 # It finds and summarises todos/tasks in note and calendar files:
 # - only covers active notes (not archived or cancelled)
@@ -17,6 +18,9 @@
 # Configuration:
 # - StorageType: select iCloud (default) or Drobpox
 # - Username: the username of the Dropbox/iCloud account to use
+#-------------------------------------------------------------------------------
+# TODO
+# * [ ] Fix discrepancy in count number of active notes with npReview
 #-------------------------------------------------------------------------------
 
 require 'date'
@@ -117,11 +121,11 @@ class NPNote
   # Define the attributes that need to be visible outside the class instances
   attr_reader :id
   attr_reader :title
-  attr_reader :isActive
-  attr_reader :isCancelled
-  attr_reader :isProject
-  attr_reader :isGoal
-  attr_reader :metadataLine
+  attr_reader :is_active
+  attr_reader :is_cancelled
+  attr_reader :is_project
+  attr_reader :is_goal
+  attr_reader :metadata_line
   attr_reader :open
   attr_reader :waiting
   attr_reader :done
@@ -134,32 +138,32 @@ class NPNote
     @filename = this_file
     @id = id
     @title = nil
-    @isActive = true # assume note is active
-    @isCancelled = false
+    @is_active = true # assume note is active
+    @is_cancelled = false
     @open = @waiting = @done = @future = @undated = 0
     @dueDate = nil
-    @isProject = false
-    @isGoal = false
+    @is_project = false
+    @is_goal = false
 
     # initialise other variables (that don't need to persist with the class instance)
-    headerLine = @metadataLine = nil
+    headerLine = @metadata_line = nil
 
     puts "  Initializing NPNote for #{this_file}" if $verbose
     # Open file and read the first two lines
     File.open(this_file) do |f|
       headerLine = f.readline
-      @metadataLine = f.readline
+      @metadata_line = f.readline
 
       # make active if #active flag set
-      @isActive = true    if @metadataLine =~ /#active/
+      @is_active = true    if @metadata_line =~ /#active/
       # but override if #archive set, or complete date set
-      @isActive = false   if (@metadataLine =~ /#archive/) || @completeDate
+      @is_active = false   if (@metadata_line =~ /#archive/) || @completeDate
       # make cancelled if #cancelled or #someday flag set
-      @isCancelled = true  if (@metadataLine =~ /#cancelled/) || (@metadataLine =~ /#someday/)
+      @is_cancelled = true  if (@metadata_line =~ /#cancelled/) || (@metadata_line =~ /#someday/)
 
       # Note if this is a #project or #goal
-      @isProject = true if @metadataLine =~ /#project/
-      @isGoal    = true if @metadataLine =~ /#goal/
+      @is_project = true if @metadata_line =~ /#project/
+      @is_goal    = true if @metadata_line =~ /#goal/
 
       # Now read through rest of file, counting number of open, waiting, done tasks etc.
       f.each_line do |line|
@@ -232,10 +236,14 @@ timeNow = Time.now
 timeNowFmt = timeNow.strftime(DATE_TIME_FORMAT)
 puts "Creating stats at #{timeNowFmt}:"
 
-n = 0 # number of notes/calendar entries to work on
+# Read metadata for all note files in the NotePlan directory
+# (and sub-directories from v2.5, ignoring special ones starting '@')
+n = 0 # number of calendar entries to work on
 begin
   Dir.chdir(NP_CALENDAR_DIR)
-  Dir.glob('*.txt').each do |this_file|
+  Dir.glob('**/*.txt').each do |this_file|
+    next unless this_file =~ /^[^@]/ # as can't get file glob including [^@] to work
+
     calFiles[n] = NPCalendar.new(this_file, n)
     n += 1
   end
@@ -265,13 +273,15 @@ activeNotes = [] # list of ID of all active notes which are Goals
 nonActiveNotes = 0 # simple count of non-active notes
 
 # Read metadata for all note files in the NotePlan directory
-# (and sub-directories from v2.5)
-i = 0
+# (and sub-directories from v2.5, ignoring special ones starting '@')
+i = 0 # number of notes to work on
 begin
   Dir.chdir(NP_NOTE_DIR)
   Dir.glob('**/*.txt').each do |this_file|
+    next unless this_file =~ /^[^@]/ # as can't get file glob including [^@] to work
+
     notes[i] = NPNote.new(this_file, i)
-    if notes[i].isActive && !notes[i].isCancelled
+    if notes[i].is_active && !notes[i].is_cancelled
       activeNotes.push(notes[i].id)
       i += 1
     else
@@ -287,13 +297,13 @@ end
 if i.positive? # if we have some notes to work on ...
   activeNotes.each do |nn|
     n = notes[nn]
-    if n.isGoal
+    if n.is_goal
       tgd += n.done
       tgo += n.open
       tgu += n.undated
       tgw += n.waiting
       tgf += n.future
-    elsif n.isProject
+    elsif n.is_project
       tpd += n.done
       tpo += n.open
       tpu += n.undated
@@ -328,11 +338,11 @@ puts "TOTAL\t#{td}\t#{to}\t#{tu}\t#{tw}\t#{tf}".colorize(TotalColour)
 return unless options[:no_file].nil?
 
 output = format('%s,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d',
-              timeNowFmt, activeNotes.count, nonActiveNotes,
-              tgd, tgo, tgu, tgw, tgf,
-              tpd, tpo, tpu, tpw, tpf,
-              tod, too, tou, tow, tof,
-              td, to, tu, tw, tf)
+                timeNowFmt, activeNotes.count, nonActiveNotes,
+                tgd, tgo, tgu, tgw, tgf,
+                tpd, tpo, tpu, tpw, tpf,
+                tod, too, tou, tow, tof,
+                td, to, tu, tw, tf)
 f = File.open(NP_SUMMARIES_DIR + '/task_stats.csv', 'a')
 f.puts output
 f.close
