@@ -110,7 +110,7 @@ class NPCalendar
     # extract tags from lines
     @tags = header.scan(%r{#[\w/]+}).join(' ')
   rescue StandardError => e
-    puts "ERROR: Hit #{e.exception.message} when initialising #{@filename}".colorize(WarningColour)
+    puts "ERROR: Hit #{e.exception.message} when initialising #{@filename} in NPCalendar".colorize(WarningColour)
   end
 end
 
@@ -148,7 +148,7 @@ class NPNote
 
     puts "  Initializing NPNote for #{this_file}" if $verbose
     # Open file and read the first two lines
-    File.open(this_file) do |f|
+    File.open(this_file, 'r', encoding: 'utf-8') do |f|
       headerLine = f.readline
       @metadata_line = f.readline
 
@@ -187,7 +187,7 @@ class NPNote
       end
     end
   rescue StandardError => e
-    puts "ERROR: Hit #{e.exception.message} when initialising #{@filename}".colorize(WarningColour)
+    puts "ERROR: Hit #{e.exception.message} when initialising #{@filename} in NPNote".colorize(WarningColour)
   end
 end
 
