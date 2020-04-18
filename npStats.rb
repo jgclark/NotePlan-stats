@@ -1,7 +1,7 @@
 #!/usr/bin/ruby
 #-------------------------------------------------------------------------------
 # NotePlan Task Stats Summariser
-# (c) JGC, v1.2.1, 18.4.2020
+# (c) JGC, v1.2.2, 18.4.2020
 #-------------------------------------------------------------------------------
 # Script to give stats on various tags in NotePlan's note and calendar files.
 # From NotePlan v2.5 it also covers notes in sub-directories, but ignores notes
@@ -88,7 +88,7 @@ class NPCalendar
         # Counting number of open, waiting, done tasks etc.
         if line =~ /\[x\]/
           @done += 1 # count this as a completed task
-        elsif line =~ /^\s*\*\s+/ # a task, but (by implication) not completed
+        elsif line =~ /^\s*\*\s+/ && line !~ /\[\-\]/ # a task, but not cancelled (or by implication not completed)
           if line =~ /#waiting/
             @waiting += 1 # count this as waiting not open
           else
@@ -152,11 +152,11 @@ class NPNote
       headerLine = f.readline
       @metadata_line = f.readline
 
-      # make active if #active flag set
+      # make note active if #active flag set
       @is_active = true    if @metadata_line =~ /#active/
       # but override if #archive set, or complete date set
       @is_active = false   if (@metadata_line =~ /#archive/) || @completeDate
-      # make cancelled if #cancelled or #someday flag set
+      # make note cancelled if #cancelled or #someday flag set
       @is_cancelled = true  if (@metadata_line =~ /#cancelled/) || (@metadata_line =~ /#someday/)
 
       # Note if this is a #project or #goal
@@ -167,7 +167,7 @@ class NPNote
       f.each_line do |line|
         if line =~ /\[x\]/
           @done += 1 # count this as a completed task
-        elsif line =~ /^\s*\*\s+/ # a task, but (by implication) not completed
+        elsif line =~ /^\s*\*\s+/ && line !~ /\[\-\]/ # a task, but not cancelled (or by implication not completed)
           if line =~ /#waiting/
             @waiting += 1 # count this as waiting not open
           else
@@ -246,7 +246,7 @@ begin
     n += 1
   end
 rescue StandardError => e
-  puts "ERROR: Hit #{e.exception.message} when reading calendar file #{this_file}".colorize(WarningColour)
+  puts "ERROR: Hit #{e.exception.message} when reading calendar directory".colorize(WarningColour)
 end
 
 if n.positive? # if we have some notes to work on ...
@@ -287,7 +287,7 @@ begin
     end
   end
 rescue StandardError => e
-  puts "ERROR: Hit #{e.exception.message} when reading note file #{this_file}".colorize(WarningColour)
+  puts "ERROR: Hit #{e.exception.message} when reading notes directory".colorize(WarningColour)
 end
 
 # Count open (overdue) tasks, open undated, waiting, done tasks, future tasks
