@@ -49,7 +49,7 @@ NP_BASE_DIR = if STORAGE_TYPE == 'iCloud'
                 "/Users/#{USERNAME}/Library/Mobile Documents/iCloud~co~noteplan~NotePlan/Documents" # for iCloud storage
               else
                 "/Users/#{USERNAME}/Dropbox/Apps/NotePlan/Documents" # for Dropbox storage
-            end
+              end
 NP_CAL_DIR = "#{NP_BASE_DIR}/Calendar".freeze
 NP_SUMM_DIR = "#{NP_BASE_DIR}/Summaries".freeze
 

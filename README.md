@@ -3,7 +3,7 @@ This provides two scripts to use with [NotePlan](https://noteplan.co/) app.
 
 ## npStats
 This script gives stats on various tags in NotePlan's note and calendar files, writing output to screen and to CSV file <code>NotePlan/Summaries/task_stats.csv</code>.
-It copes with notes in sub-directories (added in NotePlan v2.6).
+It copes with notes in sub-directories (added in NotePlan v2.5), though it ignores ones in the built-in @Archive and @Trash directories.
 
 It finds and summarises todos/tasks in note and calendar files:
 - only covers active notes (not archived or cancelled)
@@ -20,7 +20,8 @@ There are 2 ways of running this:
 1. with a passed year, it will just look in the files for that year.
 2. with no arguments, it will just count the current year, and distinguish dates in the future (where relevant)
 
-It write
+It writes output to screen and appends to a CSV file in the (new) top-level 'Summaries' directory (unless the --nofile option is given).
+
 ## Configuration
 Set the following variables:
 - <code>STORAGE_TYPE</code>: select iCloud (default) or Drobpox
