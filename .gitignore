@@ -60,3 +60,5 @@ build-iPhoneSimulator/
 .vscode/settings.json
 *.yml
 .vscode/settings.json
+*.png
+npGraph.rb

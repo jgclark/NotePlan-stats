@@ -1,7 +1,7 @@
 #!/usr/bin/ruby
 #-------------------------------------------------------------------------------
 # NotePlan Task Stats Summariser
-# (c) JGC, v1.2.2, 18.4.2020
+# (c) JGC, v1.2.4, 6.7.2020
 #-------------------------------------------------------------------------------
 # Script to give stats on various tags in NotePlan's note and calendar files.
 # From NotePlan v2.5 it also covers notes in sub-directories, but ignores notes
@@ -114,6 +114,8 @@ class NPCalendar
   end
 end
 
+#-------------------------------------------------------------------------
+
 # NPNote Class reflects a stored NP note.
 class NPNote
   # Define the attributes that need to be visible outside the class instances
@@ -218,8 +220,9 @@ $verbose = options[:verbose]
 # puts options
 # exit
 
-# counts open (overdue) tasks, open undated, waiting, done tasks, future tasks
+# counts open (overdue) notes, tasks: open undated, waiting, done tasks, future tasks
 # breaks down by Goals/Projects/Other
+ton = tpn = tgn = 0
 tod = tpd = tgd = 0
 too = tpo = tgo = 0
 tou = tpu = tgu = 0
@@ -267,8 +270,7 @@ puts
 # Note stats
 #=======================================================================================
 notes = [] # read in all notes
-activeNotes = [] # list of ID of all active notes which are Goals
-nonActiveNotes = 0 # simple count of non-active notes
+activeNotes = [] # list of ID of all active notes
 
 # Read metadata for all note files in the NotePlan directory
 # (and sub-directories from v2.5, ignoring special ones starting '@')
@@ -282,8 +284,6 @@ begin
     if notes[i].is_active && !notes[i].is_cancelled
       activeNotes.push(notes[i].id)
       i += 1
-    else
-      nonActiveNotes += 1
     end
   end
 rescue StandardError => e
@@ -296,18 +296,21 @@ if i.positive? # if we have some notes to work on ...
   activeNotes.each do |nn|
     n = notes[nn]
     if n.is_goal
+      tgn += 1
       tgd += n.done
       tgo += n.open
       tgu += n.undated
       tgw += n.waiting
       tgf += n.future
     elsif n.is_project
-      tpd += n.done
+      tpn += 1
+            tpd += n.done
       tpo += n.open
       tpu += n.undated
       tpw += n.waiting
       tpf += n.future
     else
+      ton += 1
       tod += n.done
       too += n.open
       tou += n.undated
@@ -318,6 +321,8 @@ if i.positive? # if we have some notes to work on ...
 else
   puts "Warning: No matching active note files found.\n".colorize(WarningColour)
 end
+
+tn = ton + tpn + tgn
 td = tod + tpd + tgd
 to = too + tpo + tgo
 tu = tou + tpu + tgu
@@ -326,17 +331,17 @@ tf = tof + tpf + tgf
 
 # Show results on screen
 puts "From #{activeNotes.count} active notes:"
-puts "\tDone\tOverdue\tUndated\tWaiting\tFuture".colorize(TotalColour)
-puts "Goals\t#{tgd}\t#{tgo}\t#{tgu}\t#{tgw}\t#{tgf}"
-puts "Project\t#{tpd}\t#{tpo}\t#{tpu}\t#{tpw}\t#{tpf}"
-puts "Other\t#{tod}\t#{too}\t#{tou}\t#{tow}\t#{tof}"
-puts "TOTAL\t#{td}\t#{to}\t#{tu}\t#{tw}\t#{tf}".colorize(TotalColour)
+puts "\tNotes\tDone\tOverdue\tUndated\tWaiting\tFuture".colorize(TotalColour)
+puts "Goals\t#{tgn}\t#{tgd}\t#{tgo}\t#{tgu}\t#{tgw}\t#{tgf}"
+puts "Project\t#{tpn}\t#{tpd}\t#{tpo}\t#{tpu}\t#{tpw}\t#{tpf}"
+puts "Other\t#{ton}\t#{tod}\t#{too}\t#{tou}\t#{tow}\t#{tof}"
+puts "TOTAL\t#{tn}\t#{td}\t#{to}\t#{tu}\t#{tw}\t#{tf}".colorize(TotalColour)
 
 # Append results to CSV file (unless --nofile option given)
 return unless options[:no_file].nil?
 
-output = format('%s,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d',
-                timeNowFmt, activeNotes.count, nonActiveNotes,
+output = format('%s,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d',
+                timeNowFmt, tgn, tpn, ton,
                 tgd, tgo, tgu, tgw, tgf,
                 tpd, tpo, tpu, tpw, tpf,
                 tod, too, tou, tow, tof,
