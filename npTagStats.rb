@@ -1,7 +1,7 @@
 #!/usr/bin/ruby
 #-------------------------------------------------------------------------------
 # NotePlan Tag Stats Summariser
-# (c) JGC, v1.1.2, 15.3.2020
+# (c) JGC, v1.2.0, 11.7.2020
 #-------------------------------------------------------------------------------
 # Script to give stats on various tags in NotePlan's daily calendar files.
 #
@@ -30,14 +30,17 @@ require 'date'
 require 'time'
 require 'etc' # for login lookup, though currently not used
 require 'colorize' # for coloured output using https://github.com/fazibear/colorize
+require 'optparse'
 
 # User-settable constants
 STORAGE_TYPE = 'iCloud'.freeze # or Dropbox
-TAGS_TO_COUNT = ['#holiday', '#halfholiday', '#bankholiday', '#dayoff', '#friends', '#preach',
-                 '#wedding', '#funeral', '#baptism', '#dedication', '#thanksgiving',
+TAGS_TO_COUNT = ['#holiday', '#halfholiday', '#bankholiday', '#dayoff', '#sundayoff',
+                 '#friends', '#family',
+                 '#preach', '#wedding', '#funeral', '#baptism', '#dedication', '#thanksgiving',
                  '#welcome', '#homevisit', '#conference', '#training', '#retreat',
-                 '#parkrun', '#dogwalk', '#dogrun',
-                 '#leadaaw', '#leadmw', '#leadmp', '#leadhc'].freeze # simple array of strings
+                 '#parkrun', '#dogwalk', '#dogrun', '#run',
+                 '#leadaaw', '#leadmw', '#leadmp', '#leadhc', '#servicerecord',
+                 '#firekiln', '#glassmaking', '#tiptrip'].freeze # simple array of strings
 DATE_FORMAT = '%d.%m.%y'.freeze
 DATE_TIME_FORMAT = '%e %b %Y %H:%M'.freeze
 USERNAME = 'jonathan'.freeze
@@ -101,6 +104,28 @@ end
 #=======================================================================================
 # Main logic
 #=======================================================================================
+
+# Setup program options
+options = {}
+opt_parser = OptionParser.new do |opts|
+  opts.banner = 'Usage: npTagStats.rb [options]'
+  opts.separator ''
+  # options[:verbose] = 0
+  # options[:no_file] = 0
+  opts.on('-v', '--verbose', 'Show information as I work') do
+    options[:verbose] = 1
+  end
+  opts.on('-n', '--nofile', 'Do not write summary to file') do
+    options[:no_file] = 1
+  end
+  opts.on('-h', '--help', 'Show help') do
+    puts opts
+    exit
+  end
+end
+opt_parser.parse! # parse out options, leaving file patterns to process
+$verbose = options[:verbose]
+
 timeNow = Time.now
 timeNowFmt = timeNow.strftime(DATE_TIME_FORMAT)
 thisYear = timeNow.strftime('%Y')
@@ -164,15 +189,20 @@ if n.positive? # if we have some notes to work on ...
   printf("(Days found    \t%3d\t%3d)\n", days, futureDays)
 
   # Write out to a file (replacing any existing one)
-  f = File.open(NP_SUMM_DIR + '/' + theYear + '_tag_stats.csv', 'w')
-  i = 0
-  f.puts "Tag,Past,Future,#{timeNowFmt}"
-  TAGS_TO_COUNT.each do |t|
-    f.printf("%s,%d,%d\n", t, counts[i], futureCounts[i])
-    i += 1
+  exit if options[:no_file]
+  begin
+    f = File.open(NP_SUMM_DIR + '/' + theYear + '_tag_stats.csv', 'w')
+    i = 0
+    f.puts "Tag,Past,Future,#{timeNowFmt}"
+    TAGS_TO_COUNT.each do |t|
+      f.printf("%s,%d,%d\n", t, counts[i], futureCounts[i])
+      i += 1
+    end
+    f.printf("Days found,%d,%d\n", days, futureDays)
+    f.close
+  rescue StandardError => e
+    puts "ERROR: Hit #{e.exception.message} when writing out summary".colorize(WarningColour)
   end
-  f.printf("Days found,%d,%d\n", days, futureDays)
-  f.close
 
 else
   puts "Warning: No matching files found.\n".colorize(WarningColour)

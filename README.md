@@ -22,6 +22,8 @@ There are 2 ways of running this:
 
 It writes output to screen and appends to a CSV file in the (new) top-level 'Summaries' directory (unless the --nofile option is given).
 
+Run with <code>npTagStats -h</code> to see the few command line switches available.
+
 ## Configuration
 Set the following variables:
 - <code>STORAGE_TYPE</code>: select iCloud (default) or Drobpox
