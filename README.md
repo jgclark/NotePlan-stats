@@ -26,6 +26,6 @@ Run with <code>npTagStats -h</code> to see the few command line switches availab
 
 ## Configuration
 Set the following variables:
-- <code>STORAGE_TYPE</code>: select iCloud (default) or Drobpox
+- <code>STORAGE_TYPE</code>: select whether you're using `iCloud` for storage (the default) or `CloudKit` (from v3.0) or `Drobpox`. If you're not sure, see NotePlan's `Sync Settings`.
 - <code>USERNAME</code>: the username of the Dropbox/iCloud account to use
 - <code>TAGS_TO_COUNT</code>: array of tags to count, e.g. ["#holiday", "#halfholiday", "#bankholiday", "#dayoff"]
