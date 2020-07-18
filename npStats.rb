@@ -14,11 +14,12 @@
 # It writes output to screen and to a CSV file
 #
 # Configuration:
-# - StorageType: select iCloud (default) or Drobpox
+# - StorageType: select iCloud (default) or CloudKit or Drobpox
 # - Username: the username of the Dropbox/iCloud account to use
 #-------------------------------------------------------------------------------
-# For more details, including issues, see GitHub project https://github.com/jgclark/NotePlan-stats/
-#----------------------------------------------------------------------------------
+# For more information please see the GitHub repository:
+#   https://github.com/jgclark/NotePlan-stats/
+#-------------------------------------------------------------------------------
 
 require 'date'
 require 'time'
@@ -27,7 +28,6 @@ require 'colorize' # for coloured output using https://github.com/fazibear/color
 require 'optparse'
 
 # User-settable constants
-STORAGE_TYPE = 'iCloud'.freeze # or Dropbox
 DATE_FORMAT = '%d.%m.%y'.freeze
 DATE_TIME_FORMAT = '%e %b %Y %H:%M'.freeze
 USERNAME = 'jonathan'.freeze
@@ -35,10 +35,13 @@ USERNAME = 'jonathan'.freeze
 # Other Constant Definitions
 TODAYS_DATE = Date.today # can't work out why this needs to be a 'constant' to work -- something about visibility, I suppose
 DATE_TODAY_YYYYMMDD = TODAYS_DATE.strftime('%Y%m%d')
-NP_BASE_DIR = if STORAGE_TYPE == 'iCloud'
-                "/Users/#{USERNAME}/Library/Mobile Documents/iCloud~co~noteplan~NotePlan/Documents" # for iCloud storage
-              else
+STORAGE_TYPE = 'CloudKit'.freeze # or Dropbox or CloudKit or iCloud
+NP_BASE_DIR = if STORAGE_TYPE == 'Dropbox'
                 "/Users/#{USERNAME}/Dropbox/Apps/NotePlan/Documents" # for Dropbox storage
+              elsif STORAGE_TYPE == 'CloudKit'
+                "/Users/#{USERNAME}/Library/Application Support/co.noteplan.NotePlan3" # for CloudKit storage
+              else
+                "/Users/#{USERNAME}/Library/Mobile Documents/iCloud~co~noteplan~NotePlan/Documents" # for iCloud storage (default)
               end
 NP_CALENDAR_DIR = "#{NP_BASE_DIR}/Calendar".freeze
 NP_NOTE_DIR = "#{NP_BASE_DIR}/Notes".freeze
@@ -58,7 +61,7 @@ class NPCalendar
   attr_reader :id
   attr_reader :tags
   attr_reader :filename
-  attr_reader :isFuture
+  attr_reader :is_future
   attr_reader :open
   attr_reader :waiting
   attr_reader :done
@@ -71,12 +74,12 @@ class NPCalendar
     @id = id
     @open = @waiting = @done = @future = @undated = 0
     @tags = ''
-    @isFuture = false
+    @is_future = false
     header = ''
 
     # mark this as a future date if the filename YYYYMMDD part as a string is greater than DateToday in YYYYMMDD format
-    @isFuture = true if @filename[0..7] > DATE_TODAY_YYYYMMDD
-    puts "initialising #{@filename} #{isFuture}" if $verbose
+    @is_future = true if @filename[0..7] > DATE_TODAY_YYYYMMDD
+    puts "initialising #{@filename} #{is_future}" if $verbose
 
     # Open file and read in
     # NB: needs the encoding line when run from launchctl, otherwise you get US-ASCII invalid byte errors (basically the 'locale' settings are different)
@@ -338,6 +341,8 @@ puts "TOTAL\t#{tn}\t#{td}\t#{to}\t#{tu}\t#{tw}\t#{tf}".colorize(TotalColour)
 
 # Append results to CSV file (unless --nofile option given)
 return unless options[:no_file].nil?
+
+# TODO: Check whether Summaries directory exists. If not, create it.
 
 output = format('%s,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d',
                 timeNowFmt, tgn, tpn, ton,

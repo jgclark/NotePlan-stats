@@ -1,7 +1,7 @@
 #!/usr/bin/ruby
 #-------------------------------------------------------------------------------
 # NotePlan Tag Stats Summariser
-# (c) JGC, v1.2.0, 11.7.2020
+# (c) JGC, v1.2.2, 19.7.2020
 #-------------------------------------------------------------------------------
 # Script to give stats on various tags in NotePlan's daily calendar files.
 #
@@ -19,12 +19,13 @@
 #    dates in the future, from year to date
 #
 # Configuration:
-# - StorageType: select iCloud (default) or Drobpox
+# - StorageType: select iCloud (default) or CloudKit or Drobpox
 # - TagsToCount: array of tags to count
 # - Username: the username of the Dropbox/iCloud account to use
 #-------------------------------------------------------------------------------
-# For more details, including issues, see GitHub project https://github.com/jgclark/NotePlan-stats/
-#----------------------------------------------------------------------------------
+# For more information please see the GitHub repository:
+#   https://github.com/jgclark/NotePlan-stats/
+#-------------------------------------------------------------------------------
 
 require 'date'
 require 'time'
@@ -33,7 +34,7 @@ require 'colorize' # for coloured output using https://github.com/fazibear/color
 require 'optparse'
 
 # User-settable constants
-STORAGE_TYPE = 'iCloud'.freeze # or Dropbox
+STORAGE_TYPE = 'CloudKit'.freeze # or Dropbox or CloudKit or iCloud
 TAGS_TO_COUNT = ['#holiday', '#halfholiday', '#bankholiday', '#dayoff', '#sundayoff',
                  '#friends', '#family',
                  '#preach', '#wedding', '#funeral', '#baptism', '#dedication', '#thanksgiving',
@@ -48,13 +49,16 @@ USERNAME = 'jonathan'.freeze
 # Other Constant Definitions
 TODAYS_DATE = Date.today # can't work out why this needs to be a 'constant' to work -- something about visibility, I suppose
 DATE_TODAY_YYYYMMDD = TODAYS_DATE.strftime('%Y%m%d')
-NP_BASE_DIR = if STORAGE_TYPE == 'iCloud'
-                "/Users/#{USERNAME}/Library/Mobile Documents/iCloud~co~noteplan~NotePlan/Documents" # for iCloud storage
-              else
+NP_BASE_DIR = if STORAGE_TYPE == 'Dropbox'
                 "/Users/#{USERNAME}/Dropbox/Apps/NotePlan/Documents" # for Dropbox storage
+              elsif STORAGE_TYPE == 'CloudKit'
+                "/Users/#{USERNAME}/Library/Application Support/co.noteplan.NotePlan3" # for CloudKit storage
+              else
+                "/Users/#{USERNAME}/Library/Mobile Documents/iCloud~co~noteplan~NotePlan/Documents" # for iCloud storage (default)
               end
-NP_CAL_DIR = "#{NP_BASE_DIR}/Calendar".freeze
-NP_SUMM_DIR = "#{NP_BASE_DIR}/Summaries".freeze
+NP_NOTE_DIR = "#{NP_BASE_DIR}/Notes".freeze
+NP_CALENDAR_DIR = "#{NP_BASE_DIR}/Calendar".freeze
+NP_SUMMARIES_DIR = "#{NP_BASE_DIR}/Summaries".freeze
 
 # Colours, using the colorization gem
 TotalColour = :light_yellow
@@ -136,7 +140,7 @@ calFiles = [] # to hold all relevant calendar objects
 theYear = ARGV[0] || thisYear
 puts "Creating stats at #{timeNowFmt} for #{theYear}:"
 begin
-  Dir.chdir(NP_CAL_DIR)
+  Dir.chdir(NP_CALENDAR_DIR)
   Dir.glob("#{theYear}*.txt").each do |this_file|
     calFiles[n] = NPCalendar.new(this_file, n)
     n += 1
@@ -188,10 +192,12 @@ if n.positive? # if we have some notes to work on ...
   end
   printf("(Days found    \t%3d\t%3d)\n", days, futureDays)
 
-  # Write out to a file (replacing any existing one)
   exit if options[:no_file]
+
+  # Write out to a file (replacing any existing one)
+  # TODO: Check whether Summaries directory exists. If not, create it.
   begin
-    f = File.open(NP_SUMM_DIR + '/' + theYear + '_tag_stats.csv', 'w')
+    f = File.open(NP_SUMMARIES_DIR + '/' + theYear + '_tag_stats.csv', 'w')
     i = 0
     f.puts "Tag,Past,Future,#{timeNowFmt}"
     TAGS_TO_COUNT.each do |t|
