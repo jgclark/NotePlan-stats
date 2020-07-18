@@ -23,8 +23,8 @@
 # - TagsToCount: array of tags to count
 # - Username: the username of the Dropbox/iCloud account to use
 #-------------------------------------------------------------------------------
-# TODO
-#-------------------------------------------------------------------------------
+# For more details, including issues, see GitHub project https://github.com/jgclark/NotePlan-stats/
+#----------------------------------------------------------------------------------
 
 require 'date'
 require 'time'

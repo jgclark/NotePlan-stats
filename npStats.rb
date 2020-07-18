@@ -1,7 +1,7 @@
 #!/usr/bin/ruby
 #-------------------------------------------------------------------------------
 # NotePlan Task Stats Summariser
-# (c) JGC, v1.2.4, 6.7.2020
+# (c) JGC, v1.2.4, 11.7.2020
 #-------------------------------------------------------------------------------
 # Script to give stats on various tags in NotePlan's note and calendar files.
 # From NotePlan v2.5 it also covers notes in sub-directories, but ignores notes
@@ -17,9 +17,8 @@
 # - StorageType: select iCloud (default) or Drobpox
 # - Username: the username of the Dropbox/iCloud account to use
 #-------------------------------------------------------------------------------
-# TODO
-# * [ ] Fix discrepancy in count number of active notes with npReview
-#-------------------------------------------------------------------------------
+# For more details, including issues, see GitHub project https://github.com/jgclark/NotePlan-stats/
+#----------------------------------------------------------------------------------
 
 require 'date'
 require 'time'
@@ -304,7 +303,7 @@ if i.positive? # if we have some notes to work on ...
       tgf += n.future
     elsif n.is_project
       tpn += 1
-            tpd += n.done
+      tpd += n.done
       tpo += n.open
       tpu += n.undated
       tpw += n.waiting
