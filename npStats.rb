@@ -16,6 +16,7 @@
 # Configuration:
 # - StorageType: select iCloud (default) or CloudKit or Drobpox
 # - Username: the username of the Dropbox/iCloud account to use
+# Requires gem colorize optparse (> gem install colorize optparse)
 #-------------------------------------------------------------------------------
 # For more information please see the GitHub repository:
 #   https://github.com/jgclark/NotePlan-stats/

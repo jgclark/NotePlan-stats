@@ -22,6 +22,7 @@
 # - StorageType: select iCloud (default) or CloudKit or Drobpox
 # - TagsToCount: array of tags to count
 # - Username: the username of the Dropbox/iCloud account to use
+# Requires gem colorize optparse (> gem install colorize optparse)
 #-------------------------------------------------------------------------------
 # For more information please see the GitHub repository:
 #   https://github.com/jgclark/NotePlan-stats/
@@ -35,12 +36,13 @@ require 'optparse'
 
 # User-settable constants
 STORAGE_TYPE = 'CloudKit'.freeze # or Dropbox or CloudKit or iCloud
+# Tags to count up. TODO: issue #4 change from whitelist to blacklist
 TAGS_TO_COUNT = ['#holiday', '#halfholiday', '#bankholiday', '#dayoff', '#sundayoff',
                  '#friends', '#family',
                  '#preach', '#wedding', '#funeral', '#baptism', '#dedication', '#thanksgiving',
                  '#welcome', '#homevisit', '#conference', '#training', '#retreat',
                  '#parkrun', '#dogwalk', '#dogrun', '#run',
-                 '#leadaaw', '#leadmw', '#leadmp', '#leadhc', '#servicerecord',
+                 '#leadaaw', '#leadmw', '#leadmp', '#leadhc', '#recordvideo', '#editvideo',
                  '#firekiln', '#glassmaking', '#tiptrip'].freeze # simple array of strings
 DATE_FORMAT = '%d.%m.%y'.freeze
 DATE_TIME_FORMAT = '%e %b %Y %H:%M'.freeze
@@ -74,7 +76,7 @@ class NPCalendar
   attr_reader :id
   attr_reader :tags
   attr_reader :filename
-  attr_reader :isFuture
+  attr_reader :is_future
 
   def initialize(this_file, id)
     # initialise instance variables (that persist with the class instance)
@@ -83,11 +85,11 @@ class NPCalendar
     @lines = []
     @lineCount = 0
     @tags = ''
-    @isFuture = false
+    @is_future = false
 
     # mark this as a future date if the filename YYYYMMDD part as a string is greater than DateToday in YYYYMMDD format
-    @isFuture = true if @filename[0..7] > DATE_TODAY_YYYYMMDD
-    # puts "initialising #{@filename} #{isFuture}"
+    @is_future = true if @filename[0..7] > DATE_TODAY_YYYYMMDD
+    # puts "initialising #{@filename} #{is_future}"
 
     # Open file and read in
     # NB: needs the encoding line when run from launchctl, otherwise you get US-ASCII invalid byte errors (basically the 'locale' settings are different)
@@ -167,7 +169,7 @@ if n.positive? # if we have some notes to work on ...
     i = 0
     TAGS_TO_COUNT.each do |t|
       if cal.tags =~ /#{t}/i # case-insensitive
-        if cal.isFuture
+        if cal.is_future
           futureCounts[i] = futureCounts[i] + 1
         else
           counts[i] = counts[i] + 1
@@ -175,7 +177,7 @@ if n.positive? # if we have some notes to work on ...
       end
       i += 1
     end
-    if cal.isFuture
+    if cal.is_future
       futureDays += 1
     else
       days += 1
