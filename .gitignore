@@ -64,3 +64,6 @@ build-iPhoneSimulator/
 npGraph.rb
 empty-test.rb
 2020_tag_stats.csv
+task_stats.csv.old
+task_stats.csv
+task_stats.csv
