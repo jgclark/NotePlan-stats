@@ -1,7 +1,7 @@
 #!/usr/bin/ruby
 #-------------------------------------------------------------------------------
 # NotePlan Tag Stats Summariser
-# (c) JGC, v1.2.2, 19.7.2020
+# Jonathan Clark, v1.3.0, 24.7.2020
 #-------------------------------------------------------------------------------
 # Script to give stats on various tags in NotePlan's daily calendar files.
 #
@@ -36,8 +36,9 @@ require 'optparse'
 
 # User-settable constants
 STORAGE_TYPE = 'CloudKit'.freeze # or Dropbox or CloudKit or iCloud
-# Tags to count up. TODO: issue #4 change from whitelist to blacklist
+# Tags to count up.
 TAGS_TO_COUNT = ['#holiday', '#halfholiday', '#bankholiday', '#dayoff', '#sundayoff',
+                 '@work(13)', '@work(14)', '@work(\\d)',
                  '#friends', '#family',
                  '#preach', '#wedding', '#funeral', '#baptism', '#dedication', '#thanksgiving',
                  '#welcome', '#homevisit', '#conference', '#training', '#retreat',
@@ -60,7 +61,11 @@ NP_BASE_DIR = if STORAGE_TYPE == 'Dropbox'
               end
 NP_NOTE_DIR = "#{NP_BASE_DIR}/Notes".freeze
 NP_CALENDAR_DIR = "#{NP_BASE_DIR}/Calendar".freeze
-NP_SUMMARIES_DIR = "#{NP_BASE_DIR}/Summaries".freeze
+OUTPUT_DIR = if STORAGE_TYPE == 'CloudKit'
+               Dir.getwd # save in current directory as it won't be sync'd in a CloudKit directory
+             else
+               "#{NP_BASE_DIR}/Summaries".freeze # but otherwise store in Summaries/ directory
+  end
 
 # Colours, using the colorization gem
 TotalColour = :light_yellow
@@ -93,15 +98,15 @@ class NPCalendar
 
     # Open file and read in
     # NB: needs the encoding line when run from launchctl, otherwise you get US-ASCII invalid byte errors (basically the 'locale' settings are different)
-    header = ''
+    lines = ''
     File.open(@filename, 'r', encoding: 'utf-8') do |f|
       # Read through header lines
       f.each_line do |line|
-        header += line
+        lines += line
       end
     end
     # extract tags from lines
-    @tags = header.scan(%r{#[\w/]+}).join(' ')
+    @tags = lines.scan(%r{#[\w/]+}).join(' ')
   rescue StandardError => e
     puts "ERROR: Hit #{e.exception.message} when initialising NPCalendar from #{@filename}!".colorize(WarningColour)
   end
@@ -144,6 +149,13 @@ puts "Creating stats at #{timeNowFmt} for #{theYear}:"
 begin
   Dir.chdir(NP_CALENDAR_DIR)
   Dir.glob("#{theYear}*.txt").each do |this_file|
+    # ignore this file if the directory starts with '@'
+    fsize = File.size?(this_file) || 0
+    puts "  #{this_file} size #{fsize}" if $verbose
+    next unless this_file =~ /^[^@]/ # as can't get file glob including [^@] to work
+    # ignore this file if it's empty
+    next if File.zero?(this_file)
+
     calFiles[n] = NPCalendar.new(this_file, n)
     n += 1
   end
@@ -199,7 +211,8 @@ if n.positive? # if we have some notes to work on ...
   # Write out to a file (replacing any existing one)
   # TODO: Check whether Summaries directory exists. If not, create it.
   begin
-    f = File.open(NP_SUMMARIES_DIR + '/' + theYear + '_tag_stats.csv', 'w')
+    filepath = OUTPUT_DIR + '/' + theYear + '_tag_stats.csv'
+    f = File.open(filepath, 'w')
     i = 0
     f.puts "Tag,Past,Future,#{timeNowFmt}"
     TAGS_TO_COUNT.each do |t|
@@ -209,7 +222,7 @@ if n.positive? # if we have some notes to work on ...
     f.printf("Days found,%d,%d\n", days, futureDays)
     f.close
   rescue StandardError => e
-    puts "ERROR: Hit #{e.exception.message} when writing out summary".colorize(WarningColour)
+    puts "ERROR: Hit #{e.exception.message} when writing out summary to #{filepath}".colorize(WarningColour)
   end
 
 else

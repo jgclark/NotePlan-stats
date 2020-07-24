@@ -1,7 +1,7 @@
 #!/usr/bin/ruby
 #-------------------------------------------------------------------------------
 # NotePlan Task Stats Summariser
-# (c) JGC, v1.2.4, 11.7.2020
+# (c) JGC, v1.3.0, 24.7.2020
 #-------------------------------------------------------------------------------
 # Script to give stats on various tags in NotePlan's note and calendar files.
 # From NotePlan v2.5 it also covers notes in sub-directories, but ignores notes
@@ -43,10 +43,14 @@ NP_BASE_DIR = if STORAGE_TYPE == 'Dropbox'
                 "/Users/#{USERNAME}/Library/Application Support/co.noteplan.NotePlan3" # for CloudKit storage
               else
                 "/Users/#{USERNAME}/Library/Mobile Documents/iCloud~co~noteplan~NotePlan/Documents" # for iCloud storage (default)
-              end
+  end
 NP_CALENDAR_DIR = "#{NP_BASE_DIR}/Calendar".freeze
 NP_NOTE_DIR = "#{NP_BASE_DIR}/Notes".freeze
-NP_SUMMARIES_DIR = "#{NP_BASE_DIR}/Summaries".freeze
+OUTPUT_DIR = if STORAGE_TYPE == 'CloudKit'
+               Dir.getwd # save in current directory as it won't be sync'd in a CloudKit directory
+             else
+               "#{NP_BASE_DIR}/Summaries".freeze # but otherwise store in Summaries/ directory
+  end
 
 # Colours, using the colorization gem
 TotalColour = :light_yellow
@@ -74,7 +78,6 @@ class NPCalendar
     @filename = this_file
     @id = id
     @open = @waiting = @done = @future = @undated = 0
-    @tags = ''
     @is_future = false
     header = ''
 
@@ -82,7 +85,7 @@ class NPCalendar
     @is_future = true if @filename[0..7] > DATE_TODAY_YYYYMMDD
     puts "initialising #{@filename} #{is_future}" if $verbose
 
-    # Open file and read in
+    # Open file and read in. We've already checked it's not empty.
     # NB: needs the encoding line when run from launchctl, otherwise you get US-ASCII invalid byte errors (basically the 'locale' settings are different)
     File.open(@filename, 'r', encoding: 'utf-8') do |f|
       # Read all lines
@@ -110,8 +113,6 @@ class NPCalendar
         end
       end
     end
-    # extract tags from lines
-    @tags = header.scan(%r{#[\w/]+}).join(' ')
   rescue StandardError => e
     puts "ERROR: Hit #{e.exception.message} when initialising #{@filename} in NPCalendar".colorize(WarningColour)
   end
@@ -246,7 +247,12 @@ n = 0 # number of calendar entries to work on
 begin
   Dir.chdir(NP_CALENDAR_DIR)
   Dir.glob('**/*.txt').each do |this_file|
+    # ignore this file if the directory starts with '@'
+    fsize = File.size?(this_file) || 0
+    puts "  #{this_file} size #{fsize}" if $verbose
     next unless this_file =~ /^[^@]/ # as can't get file glob including [^@] to work
+    # ignore this file if it's empty
+    next if File.zero?(this_file)
 
     calFiles[n] = NPCalendar.new(this_file, n)
     n += 1
@@ -281,7 +287,11 @@ i = 0 # number of notes to work on
 begin
   Dir.chdir(NP_NOTE_DIR)
   Dir.glob('**/*.txt').each do |this_file|
+    fsize = File.size?(this_file) || 0
+    puts "  #{this_file} size #{fsize}" if $verbose
     next unless this_file =~ /^[^@]/ # as can't get file glob including [^@] to work
+    # ignore this file if it's empty
+    next if File.zero?(this_file)
 
     notes[i] = NPNote.new(this_file, i)
     if notes[i].is_active && !notes[i].is_cancelled
@@ -344,13 +354,17 @@ puts "TOTAL\t#{tn}\t#{td}\t#{to}\t#{tu}\t#{tw}\t#{tf}".colorize(TotalColour)
 return unless options[:no_file].nil?
 
 # TODO: Check whether Summaries directory exists. If not, create it.
-
-output = format('%s,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d',
-                timeNowFmt, tgn, tpn, ton,
-                tgd, tgo, tgu, tgw, tgf,
-                tpd, tpo, tpu, tpw, tpf,
-                tod, too, tou, tow, tof,
-                td, to, tu, tw, tf)
-f = File.open(NP_SUMMARIES_DIR + '/task_stats.csv', 'a')
-f.puts output
-f.close
+begin
+  output = format('%s,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d',
+                  timeNowFmt, tgn, tpn, ton,
+                  tgd, tgo, tgu, tgw, tgf,
+                  tpd, tpo, tpu, tpw, tpf,
+                  tod, too, tou, tow, tof,
+                  td, to, tu, tw, tf)
+  filepath = OUTPUT_DIR + '/task_stats.csv'
+  f = File.open(filepath, 'a')
+  f.puts output
+  f.close
+rescue StandardError => e
+  puts "ERROR: Hit #{e.exception.message} when writing out summary to #{filepath}".colorize(WarningColour)
+end

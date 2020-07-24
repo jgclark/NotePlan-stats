@@ -62,3 +62,5 @@ build-iPhoneSimulator/
 .vscode/settings.json
 *.png
 npGraph.rb
+empty-test.rb
+2020_tag_stats.csv
