@@ -1,7 +1,7 @@
 #!/usr/bin/ruby
 #-------------------------------------------------------------------------------
 # NotePlan Tag Stats Summariser
-# Jonathan Clark, v1.3.0, 24.7.2020
+# Jonathan Clark, v1.3.1, 27.7.2020
 #-------------------------------------------------------------------------------
 # Script to give stats on various tags in NotePlan's daily calendar files.
 #
@@ -19,9 +19,9 @@
 #    dates in the future, from year to date
 #
 # Configuration:
-# - StorageType: select iCloud (default) or CloudKit or Drobpox
-# - TagsToCount: array of tags to count
-# - Username: the username of the Dropbox/iCloud account to use
+# - STORAGE_TYPE: select CloudKit (default from NP3.0), iCloudDrive (default until NP3) or Drobpox
+# - TAGE_TO_COUNT: array of tags to count
+# - USERNAME: the username of the Dropbox/iCloud account to use
 # Requires gem colorize optparse (> gem install colorize optparse)
 #-------------------------------------------------------------------------------
 # For more information please see the GitHub repository:
@@ -62,7 +62,7 @@ NP_BASE_DIR = if STORAGE_TYPE == 'Dropbox'
 NP_NOTE_DIR = "#{NP_BASE_DIR}/Notes".freeze
 NP_CALENDAR_DIR = "#{NP_BASE_DIR}/Calendar".freeze
 OUTPUT_DIR = if STORAGE_TYPE == 'CloudKit'
-               Dir.getwd # save in current directory as it won't be sync'd in a CloudKit directory
+               "/Users/#{USERNAME}" # save in user's home directory as it won't be sync'd in a CloudKit directory
              else
                "#{NP_BASE_DIR}/Summaries".freeze # but otherwise store in Summaries/ directory
   end
