@@ -1,19 +1,15 @@
 #!/usr/bin/ruby
 #-------------------------------------------------------------------------------
 # NotePlan Tag Stats Summariser
-# Jonathan Clark, v1.3.0, 24.7.2020
+# Jonathan Clark, v1.3.2, 24.7.2020
 #-------------------------------------------------------------------------------
 # Script to give stats on various tags in NotePlan's daily calendar files.
 #
-# It notices and summarises the following tags from the top of the file
-# - #holiday, #halfholiday, #bankholiday
-# - #dayoff, #friends
-# - #training, #conference, #retreat
-# - #preach, #lead..., #wedding, #funeral, #baptism etc.
-# - etc.
+# It notices and summarises the tags specified in TAGS_TO_COUNT, which is
+# ignored and counts all tags if -a is specified.
 # It writes output to screen and to a CSV file.
 #
-# Two ways of running this:
+# There are two ways of running this:
 # 1. with a passed year, it will just look in the files for that year.
 # 2. with no arguments, it will just look in the current year, and distinguish
 #    dates in the future, from year to date
@@ -121,17 +117,21 @@ options = {}
 opt_parser = OptionParser.new do |opts|
   opts.banner = 'Usage: npTagStats.rb [options]'
   opts.separator ''
-  # options[:verbose] = 0
-  # options[:no_file] = 0
-  opts.on('-v', '--verbose', 'Show information as I work') do
-    options[:verbose] = 1
-  end
-  opts.on('-n', '--nofile', 'Do not write summary to file') do
-    options[:no_file] = 1
+  options[:all] = 0
+  options[:no_file] = 0
+  options[:verbose] = 0
+  opts.on('-a', '--all', 'Count all tags') do
+    options[:all] = 1
   end
   opts.on('-h', '--help', 'Show help') do
     puts opts
     exit
+  end
+  opts.on('-n', '--nofile', 'Do not write summary to file') do
+    options[:no_file] = 1
+  end
+  opts.on('-v', '--verbose', 'Show information as I work') do
+    options[:verbose] = 1
   end
 end
 opt_parser.parse! # parse out options, leaving file patterns to process
@@ -143,7 +143,7 @@ thisYear = timeNow.strftime('%Y')
 n = 0 # number of notes/calendar entries to work on
 calFiles = [] # to hold all relevant calendar objects
 
-# Check if we have a given argument
+# Work out which year's calendar files to be summarising
 theYear = ARGV[0] || thisYear
 puts "Creating stats at #{timeNowFmt} for #{theYear}:"
 begin
@@ -163,6 +163,16 @@ rescue StandardError => e
   puts "ERROR: Hit #{e.exception.message} when reading calendar files.".colorize(WarningColour)
 end
 
+#----------------------------
+# Count tags - main logic
+#----------------------------
+if options[:all]
+  # TODO: complete this, looking over each relevant file
+
+
+
+  
+else
 # Initialise counting array and zero all its terms
 counts = []
 futureCounts = []
@@ -174,7 +184,7 @@ end
 
 if n.positive? # if we have some notes to work on ...
   days = futureDays = 0
-  # puts "Found #{n} notes to attempt to summarise."
+  # puts "Found #{n} notes to summarise."
   # Iterate over all Calendar items, and count tags of interest.
   calFiles.each do |cal|
     # puts "  Scanning file #{cal.filename}: #{cal.tags}"
@@ -195,6 +205,7 @@ if n.positive? # if we have some notes to work on ...
       days += 1
     end
   end
+end
 
   # Write out the counts to screen
   i = 0
