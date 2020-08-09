@@ -1,17 +1,17 @@
 # NotePlan-stats
-This provides two scripts to use with [NotePlan](https://noteplan.co/) app.
+This provides two scripts to generate stats from data in the [NotePlan](https://noteplan.co/) app.
 
 <!-- Yes, I'll keep both around. New users will get CloudKit by default, if someone still has files in iCloud Drive, NotePlan will keep iCloud Drive by default till the user changes it manually. 
 Folders inside "Notes" will be uploaded. I didn't try adding folders in "Calendar", but they definitely won't be added in the root folder. Also hidden files won't be synced, such as files starting with a dot. -->
 
 ## npStats
 `npStats` script gives stats on various tags in NotePlan's note and calendar files, writing output to screen and to CSV file <code>NotePlan/Summaries/task_stats.csv</code>.
-It copes with notes in sub-directories (added in NotePlan v2.5), though it ignores ones in the built-in @Archive and @Trash directories.
+It copes with notes in sub-directories (supported from NotePlan v2.4), though it ignores ones in the built-in @Archive and @Trash directories.
 
 It finds and summarises todos/tasks in note and calendar files:
-- only covers active notes (not archived or cancelled)
-- counts open tasks, open undated tasks, done tasks, future tasks
-- breaks down by Goals/Projects/Other
+- it only covers active notes (not archived or cancelled)
+- it counts open tasks, open undated tasks, done tasks, future tasks
+- it also breaks them down by Goals/Projects/Other (For more on this particular way of using NotePlan see documentation for a different NotePlan extension, [NotePlan Reviewer]((https://github.com/jgclark/NotePlan-review).)
 
 It writes output to screen and appends to a `task_stats.csv` file in the (new) top-level 'Summaries' directory (unless the --nofile option is given). If the storage type is `CloudKit` it will instead save to the user's home directory.
 

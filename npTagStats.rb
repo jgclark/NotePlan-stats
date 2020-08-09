@@ -1,7 +1,7 @@
 #!/usr/bin/ruby
 #-------------------------------------------------------------------------------
 # NotePlan Tag Stats Summariser
-# Jonathan Clark, v1.3.1, 27.7.2020
+# Jonathan Clark, v1.3.1, 9.8.2020
 #-------------------------------------------------------------------------------
 # Script to give stats on various tags in NotePlan's daily calendar files.
 #
@@ -38,10 +38,10 @@ require 'optparse'
 STORAGE_TYPE = 'CloudKit'.freeze # or Dropbox or CloudKit or iCloud
 # Tags to count up.
 TAGS_TO_COUNT = ['#holiday', '#halfholiday', '#bankholiday', '#dayoff', '#sundayoff',
-                 '@work(13)', '@work(14)', '@work(\\d)',
                  '#friends', '#family',
+                 '#work1', '#work5', '#work6', '#work7', '#work8', '#work9', '#work10', '#work11', '#work12', '#work13', '#work14',
                  '#preach', '#wedding', '#funeral', '#baptism', '#dedication', '#thanksgiving',
-                 '#welcome', '#homevisit', '#conference', '#training', '#retreat',
+                 '#welcome', '#homevisit', '#conference', '#training', '#retreat', '#mentor', '#mentee',
                  '#parkrun', '#dogwalk', '#dogrun', '#run',
                  '#leadaaw', '#leadmw', '#leadmp', '#leadhc', '#recordvideo', '#editvideo',
                  '#firekiln', '#glassmaking', '#tiptrip'].freeze # simple array of strings
@@ -65,7 +65,7 @@ OUTPUT_DIR = if STORAGE_TYPE == 'CloudKit'
                "/Users/#{USERNAME}" # save in user's home directory as it won't be sync'd in a CloudKit directory
              else
                "#{NP_BASE_DIR}/Summaries".freeze # but otherwise store in Summaries/ directory
-  end
+             end
 
 # Colours, using the colorization gem
 TotalColour = :light_yellow
@@ -94,7 +94,7 @@ class NPCalendar
 
     # mark this as a future date if the filename YYYYMMDD part as a string is greater than DateToday in YYYYMMDD format
     @is_future = true if @filename[0..7] > DATE_TODAY_YYYYMMDD
-    # puts "initialising #{@filename} #{is_future}"
+    puts "initialising #{@filename} #{is_future}" if $verbose == 1
 
     # Open file and read in
     # NB: needs the encoding line when run from launchctl, otherwise you get US-ASCII invalid byte errors (basically the 'locale' settings are different)
@@ -107,6 +107,7 @@ class NPCalendar
     end
     # extract tags from lines
     @tags = lines.scan(%r{#[\w/]+}).join(' ')
+    puts "  Found tags #{!tags}" if $verbose == 1
   rescue StandardError => e
     puts "ERROR: Hit #{e.exception.message} when initialising NPCalendar from #{@filename}!".colorize(WarningColour)
   end
@@ -174,7 +175,7 @@ end
 
 if n.positive? # if we have some notes to work on ...
   days = futureDays = 0
-  # puts "Found #{n} notes to attempt to summarise."
+  puts "Found #{n} notes to attempt to summarise." if $verbose == 1
   # Iterate over all Calendar items, and count tags of interest.
   calFiles.each do |cal|
     # puts "  Scanning file #{cal.filename}: #{cal.tags}"
