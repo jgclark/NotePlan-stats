@@ -1,7 +1,7 @@
 #!/usr/bin/ruby
 #-------------------------------------------------------------------------------
 # NotePlan Tag Stats Summariser
-# Jonathan Clark, v1.3.2, 24.7.2020
+# Jonathan Clark, v1.3.2, 9.8.2020
 #-------------------------------------------------------------------------------
 # Script to give stats on various tags in NotePlan's daily calendar files.
 #
@@ -15,9 +15,9 @@
 #    dates in the future, from year to date
 #
 # Configuration:
-# - StorageType: select iCloud (default) or CloudKit or Drobpox
-# - TagsToCount: array of tags to count
-# - Username: the username of the Dropbox/iCloud account to use
+# - STORAGE_TYPE: select CloudKit (default from NP3.0), iCloudDrive (default until NP3) or Drobpox
+# - TAGE_TO_COUNT: array of tags to count
+# - USERNAME: the username of the Dropbox/iCloud account to use
 # Requires gem colorize optparse (> gem install colorize optparse)
 #-------------------------------------------------------------------------------
 # For more information please see the GitHub repository:
@@ -34,13 +34,14 @@ require 'optparse'
 STORAGE_TYPE = 'CloudKit'.freeze # or Dropbox or CloudKit or iCloud
 # Tags to count up.
 TAGS_TO_COUNT = ['#holiday', '#halfholiday', '#bankholiday', '#dayoff', '#sundayoff',
-                 '@work(13)', '@work(14)', '@work(\\d)',
-                 '#friends', '#family',
+                 '#friends', '#family', '#bbq',
+                 # '#work1', '#work5', '#work6', '#work7', '#work8', '#work9', '#work10', '#work11', '#work12', '#work13', '#work14',
                  '#preach', '#wedding', '#funeral', '#baptism', '#dedication', '#thanksgiving',
-                 '#welcome', '#homevisit', '#conference', '#training', '#retreat',
+                 '#welcome', '#homevisit', '#conference', '#training', '#retreat', '#mentor', '#mentee',
                  '#parkrun', '#dogwalk', '#dogrun', '#run',
                  '#leadaaw', '#leadmw', '#leadmp', '#leadhc', '#recordvideo', '#editvideo',
                  '#firekiln', '#glassmaking', '#tiptrip'].freeze # simple array of strings
+PARAMS_TO_COUNT = ['@work', '@sleep'].freeze
 DATE_FORMAT = '%d.%m.%y'.freeze
 DATE_TIME_FORMAT = '%e %b %Y %H:%M'.freeze
 USERNAME = 'jonathan'.freeze
@@ -58,10 +59,10 @@ NP_BASE_DIR = if STORAGE_TYPE == 'Dropbox'
 NP_NOTE_DIR = "#{NP_BASE_DIR}/Notes".freeze
 NP_CALENDAR_DIR = "#{NP_BASE_DIR}/Calendar".freeze
 OUTPUT_DIR = if STORAGE_TYPE == 'CloudKit'
-               Dir.getwd # save in current directory as it won't be sync'd in a CloudKit directory
+               "/Users/#{USERNAME}" # save in user's home directory as it won't be sync'd in a CloudKit directory
              else
                "#{NP_BASE_DIR}/Summaries".freeze # but otherwise store in Summaries/ directory
-  end
+             end
 
 # Colours, using the colorization gem
 TotalColour = :light_yellow
@@ -90,7 +91,7 @@ class NPCalendar
 
     # mark this as a future date if the filename YYYYMMDD part as a string is greater than DateToday in YYYYMMDD format
     @is_future = true if @filename[0..7] > DATE_TODAY_YYYYMMDD
-    # puts "initialising #{@filename} #{is_future}"
+    puts "initialising #{@filename} #{is_future}" if $verbose == 1
 
     # Open file and read in
     # NB: needs the encoding line when run from launchctl, otherwise you get US-ASCII invalid byte errors (basically the 'locale' settings are different)
@@ -103,6 +104,10 @@ class NPCalendar
     end
     # extract tags from lines
     @tags = lines.scan(%r{#[\w/]+}).join(' ')
+    puts "  Found tags #{@tags}" if $verbose == 1
+    # extract tag params from lines
+    @tag_params = lines.scan(%r{@[\w/]+\(\d+\)}).join(' ')
+    puts "  Found tag params #{@tag_params}" if $verbose == 1
   rescue StandardError => e
     puts "ERROR: Hit #{e.exception.message} when initialising NPCalendar from #{@filename}!".colorize(WarningColour)
   end
@@ -168,33 +173,39 @@ end
 #----------------------------
 if options[:all]
   # TODO: complete this, looking over each relevant file
+end
 
-
-
-  
-else
 # Initialise counting array and zero all its terms
-counts = []
-futureCounts = []
+tag_counts = []
+tag_counts_future = []
+param_counts = []
 i = 0
 TAGS_TO_COUNT.each do |_t|
-  counts[i] = futureCounts[i] = 0
+  tag_counts[i] = tag_counts_future[i] = 0
+  i += 1
+end
+PARAMS_TO_COUNT.each do |_t|
+  param_counts[i]
   i += 1
 end
 
-if n.positive? # if we have some notes to work on ...
+# if we have some notes to work on ...
+if n.positive?
+  # Do counts
+
   days = futureDays = 0
-  # puts "Found #{n} notes to summarise."
-  # Iterate over all Calendar items, and count tags of interest.
+  puts "Found #{n} notes to summarise." if $verbose == 1
+  # Iterate over all Calendar items
   calFiles.each do |cal|
     # puts "  Scanning file #{cal.filename}: #{cal.tags}"
     i = 0
+    # Count tags of interest
     TAGS_TO_COUNT.each do |t|
       if cal.tags =~ /#{t}/i # case-insensitive
         if cal.is_future
-          futureCounts[i] = futureCounts[i] + 1
+          tag_counts_future[i] = tag_counts_future[i] + 1
         else
-          counts[i] = counts[i] + 1
+          tag_counts[i] = tag_counts[i] + 1
         end
       end
       i += 1
@@ -204,18 +215,32 @@ if n.positive? # if we have some notes to work on ...
     else
       days += 1
     end
+
+    # Count params of interest
+    PARAMS_TO_COUNT.each do |t|
+      # TODO
+    end
   end
-end
+
+  # Sum param counts as well TODO
 
   # Write out the counts to screen
-  i = 0
   puts "\t\tPast\tFuture\tfor #{theYear}".colorize(TotalColour)
+  # Write out the tag counts list to screen
+  i = 0
   TAGS_TO_COUNT.each do |t|
-    printf("%-15s\t%3d\t%3d\n", t, counts[i], futureCounts[i])
-    # puts "#{t}\t#{counts[i]}\t#{futureCounts[i]}"
+    printf("%-15s\t%3d\t%3d\n", t, tag_counts[i], tag_counts_future[i])
     i += 1
   end
   printf("(Days found    \t%3d\t%3d)\n", days, futureDays)
+  # Write out the param counts table to screen
+  PARAMS_TO_COUNT.each do |p|
+    printf("%-15s\t%3d\n", p, param_counts[i])
+    # TODO
+    i += 1
+  end
+  # Write out the param counts sum as list
+  # TODO:
 
   exit if options[:no_file]
 
@@ -224,18 +249,22 @@ end
   begin
     filepath = OUTPUT_DIR + '/' + theYear + '_tag_stats.csv'
     f = File.open(filepath, 'w')
+    # Write out the tag counts list
     i = 0
     f.puts "Tag,Past,Future,#{timeNowFmt}"
     TAGS_TO_COUNT.each do |t|
-      f.printf("%s,%d,%d\n", t, counts[i], futureCounts[i])
+      f.printf("%s,%d,%d\n", t, tag_counts[i], tag_counts_future[i])
       i += 1
     end
     f.printf("Days found,%d,%d\n", days, futureDays)
+    # Write out the param counts as table
+    # TODO:
+    # Write out the param counts sum as list
+    # TODO:
     f.close
   rescue StandardError => e
     puts "ERROR: Hit #{e.exception.message} when writing out summary to #{filepath}".colorize(WarningColour)
   end
-
 else
   puts "Warning: No matching files found.\n".colorize(WarningColour)
 end

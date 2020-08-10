@@ -1,7 +1,7 @@
 #!/usr/bin/ruby
 #-------------------------------------------------------------------------------
 # NotePlan Task Stats Summariser
-# (c) JGC, v1.3.0, 24.7.2020
+# (c) JGC, v1.3.2, 247.7.2020
 #-------------------------------------------------------------------------------
 # Script to give stats on various tags in NotePlan's note and calendar files.
 # From NotePlan v2.5 it also covers notes in sub-directories, but ignores notes
@@ -14,8 +14,8 @@
 # It writes output to screen and to a CSV file
 #
 # Configuration:
-# - StorageType: select iCloud (default) or CloudKit or Drobpox
-# - Username: the username of the Dropbox/iCloud account to use
+# - STORAGE_TYPE: select CloudKit (default from NP3.0), iCloudDrive (default until NP3) or Drobpox
+# - USERNAME: the username of the Dropbox/iCloud account to use
 # Requires gem colorize optparse (> gem install colorize optparse)
 #-------------------------------------------------------------------------------
 # For more information please see the GitHub repository:
@@ -47,10 +47,11 @@ NP_BASE_DIR = if STORAGE_TYPE == 'Dropbox'
 NP_CALENDAR_DIR = "#{NP_BASE_DIR}/Calendar".freeze
 NP_NOTE_DIR = "#{NP_BASE_DIR}/Notes".freeze
 OUTPUT_DIR = if STORAGE_TYPE == 'CloudKit'
-               Dir.getwd # save in current directory as it won't be sync'd in a CloudKit directory
+               "/Users/#{USERNAME}" # save in user's home directory as it won't be sync'd in a CloudKit directory
              else
                "#{NP_BASE_DIR}/Summaries".freeze # but otherwise store in Summaries/ directory
   end
+puts "(Working dir: #{OUTPUT_DIR})"
 
 # Colours, using the colorization gem
 TotalColour = :light_yellow
