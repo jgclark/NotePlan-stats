@@ -1,7 +1,7 @@
 #!/usr/bin/ruby
 #-------------------------------------------------------------------------------
 # NotePlan Task Stats Summariser
-# (c) JGC, v1.3.2, 247.7.2020
+# (c) JGC, v1.3.2, 24.7.2020
 #-------------------------------------------------------------------------------
 # Script to give stats on various tags in NotePlan's note and calendar files.
 # From NotePlan v2.5 it also covers notes in sub-directories, but ignores notes
@@ -21,6 +21,7 @@
 # For more information please see the GitHub repository:
 #   https://github.com/jgclark/NotePlan-stats/
 #-------------------------------------------------------------------------------
+VERSION = '1.3.2'.freeze
 
 require 'date'
 require 'time'
@@ -43,14 +44,14 @@ NP_BASE_DIR = if STORAGE_TYPE == 'Dropbox'
                 "/Users/#{USERNAME}/Library/Application Support/co.noteplan.NotePlan3" # for CloudKit storage
               else
                 "/Users/#{USERNAME}/Library/Mobile Documents/iCloud~co~noteplan~NotePlan/Documents" # for iCloud storage (default)
-  end
+              end
 NP_CALENDAR_DIR = "#{NP_BASE_DIR}/Calendar".freeze
 NP_NOTE_DIR = "#{NP_BASE_DIR}/Notes".freeze
 OUTPUT_DIR = if STORAGE_TYPE == 'CloudKit'
                "/Users/#{USERNAME}" # save in user's home directory as it won't be sync'd in a CloudKit directory
              else
                "#{NP_BASE_DIR}/Summaries".freeze # but otherwise store in Summaries/ directory
-  end
+             end
 puts "(Working dir: #{OUTPUT_DIR})"
 
 # Colours, using the colorization gem
