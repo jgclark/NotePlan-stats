@@ -1,5 +1,5 @@
 # NotePlan-stats
-This provides two scripts to generate stats from data in the [NotePlan](https://noteplan.co/) app.
+This provides two scripts to generate stats from your data in the [NotePlan](https://noteplan.co/) app.
 
 <!-- Yes, I'll keep both around. New users will get CloudKit by default, if someone still has files in iCloud Drive, NotePlan will keep iCloud Drive by default till the user changes it manually. 
 Folders inside "Notes" will be uploaded. I didn't try adding folders in "Calendar", but they definitely won't be added in the root folder. Also hidden files won't be synced, such as files starting with a dot. -->
@@ -18,7 +18,7 @@ It writes output to screen and appends to a `task_stats.csv` file in the (new) t
 Run with <code>npStats -h</code> to see the few command line switches available.
 
 ## npTagStats
-`npTagStats` script gives stats on various hashtags in NotePlan's daily calendar files, writing to screen and to CSV file <code>NotePlan/Summaries/{year}_tag_stats.csv</code>.
+`npTagStats` script gives stats on various #hashtags and @mentions in NotePlan's daily calendar files, writing to screen and to a CSV file. The @mentions counted are of the form `@mention(number)`, e.g. `@work(8)` or `@work(10)`, where it will show a table of counts of the different @work parameters. This allows simple tracking of numeric items over time, for example hours.
 
 There are 2 ways of running this:
 
@@ -28,11 +28,15 @@ There are 2 ways of running this:
 It writes output to screen and writes to a `<year>_tag_stats.csv` file in the (new) top-level 'Summaries' directory (unless the --nofile option is given).  If the storage type is `CloudKit` it will instead save to the user's home directory.
 
 Run with <code>npTagStats -h</code> to see the few command line switches available.
+<!-- more here -->
 
 ## Configuration
-Set the following variables:
+Set the following variables in both scripts:
 - <code>STORAGE_TYPE</code>: select whether you're using `iCloud` for storage (the default) or `CloudKit` (from v3.0) or `Drobpox`. If you're not sure, see NotePlan's `Sync Settings`.
 - <code>USERNAME</code>: the username of the Dropbox/iCloud account to use
-- <code>TAGS_TO_COUNT</code>: array of tags to count, e.g. ["#holiday", "#halfholiday", "#bankholiday", "#dayoff"]
+
+For the `npTagStats` script also configure:
+- <code>TAGS_TO_COUNT</code>: array of hashtags to count, e.g. ["#holiday", "#halfholiday", "#bankholiday", "#dayoff"]
+- <code>MENTIONS_TO_COUNT</code>: array of mentions to count, e.g. ["@work", "@sleep"]
 
 Check you have installed the `colorize` and `optparse` gems (> gem install colorize optparse).

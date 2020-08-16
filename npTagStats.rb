@@ -1,7 +1,7 @@
 #!/usr/bin/ruby
 #-------------------------------------------------------------------------------
 # NotePlan Tag Stats Summariser
-# Jonathan Clark, v1.3.2, 10.8.2020
+# Jonathan Clark, v1.3.3, 16.8.2020
 #-------------------------------------------------------------------------------
 # Script to give stats on various tags in NotePlan's daily calendar files.
 #
@@ -24,6 +24,7 @@
 # For more information, including installation, please see the GitHub repository:
 #   https://github.com/jgclark/NotePlan-stats/
 #-------------------------------------------------------------------------------
+VERSION = '1.3.3'.freeze
 
 require 'date'
 require 'time'
@@ -40,8 +41,8 @@ TAGS_TO_COUNT = ['#holiday', '#halfholiday', '#bankholiday', '#dayoff', '#sunday
                  '#welcome', '#homevisit', '#conference', '#training', '#retreat', '#mentor', '#mentee',
                  '#parkrun', '#dogwalk', '#dogrun', '#run',
                  '#leadaaw', '#leadmw', '#leadmp', '#leadhc', '#recordvideo', '#editvideo',
-                 '#firekiln', '#glassmaking', '#tiptrip'].freeze # simple array of strings
-MENTIONS_TO_COUNT = ['@work', '@sleep'].freeze
+                 '#firekiln', '#glassmaking', '#tiptrip'].sort # simple array of strings
+MENTIONS_TO_COUNT = ['@work', '@sleep'].sort
 DATE_FORMAT = '%d.%m.%y'.freeze
 DATE_TIME_FORMAT = '%e %b %Y %H:%M'.freeze
 USERNAME = 'jonathan'.freeze
@@ -127,9 +128,9 @@ opt_parser = OptionParser.new do |opts|
   options[:all] = false
   options[:write_file] = true
   options[:verbose] = false
-  opts.on('-a', '--all', 'Count all tags') do
-    options[:all] = true
-  end
+  # opts.on('-a', '--all', 'Count all found tags, not just those configured in TAGS_TO_COUNT') do
+  #   options[:all] = true
+  # end
   opts.on('-h', '--help', 'Show help') do
     puts opts
     exit
@@ -175,6 +176,7 @@ end
 #-----------------------------------------------------------------------
 if options[:all]
   # TODO: complete this, looking over each relevant file
+  # will need to turn this option on as well above
 end
 
 # if we have some notes to work on ...
@@ -226,9 +228,10 @@ if n.positive?
 
       puts "   #{cal.filename} has #{cal.mentions}" if $verbose
       cal.mentions.scan(/#{m}\((\d+?)\)/).each do |p|
-        c = param_counts[m].fetch(p, 0) # get current value, or if doesn't exist, default to 0
+        pi = p.join.to_i # deal with integers rather than their string equivalents
+        c = param_counts[m].fetch(pi, 0) # get current value, or if doesn't exist, default to 0
         puts "    new #{m}(#{p})   already seen #{c}" if $verbose
-        param_counts[m][p] = c + 1
+        param_counts[m][pi] = c + 1
       end
     end
   end
@@ -260,13 +263,13 @@ if n.positive?
     f.printf("Days found,%d,%d\n", days, futureDays) if options[:write_file]
 
     # Write out the @mention counts
-    # FIXME: sort the hash, or convert to array and then sort
-    newhash = param_counts
-    # puts newhash
-    # puts newhash.class
-
+    # Involves taking each main part of the hash and converting to an array to sort it
+    # items need to be integer, to sort properly here (see pi earlier)
     MENTIONS_TO_COUNT.each do |m|
-      next if newhash[m].empty?
+      ma = param_counts[m].sort
+      next if ma.empty?
+
+      puts "For #{m}, type #{ma.class} size #{ma.size}"
 
       m_key_screen = '  Param:'
       m_key_file = 'Param'
@@ -274,13 +277,17 @@ if n.positive?
       m_value_file = 'Count'
       m_sum_screen = '  Total:'
       m_sum_file = 'Total'
-      newhash[m].each do |k, v|
-        m_key_screen   += "\t#{k[0]}"
-        m_value_screen += "\t#{v}"
-        m_key_file     += ",#{k[0]}"
-        m_value_file   += ",#{v}"
+      i = 0
+      while i < ma.size
+        mak = ma[i][0]
+        mav = ma[i][1]
+        m_key_screen += "\t#{mak}"
+        m_value_screen += "\t#{mav}"
+        m_key_file += ",#{mak}"
+        m_value_file += ",#{mav}"
+        i += 1
         # Calculate the sum of this k*v
-        m_sum = k[0].to_i * v
+        m_sum = mak * mav
         m_sum_screen += "\t#{m_sum}"
         m_sum_file += ",#{m_sum}"
       end
