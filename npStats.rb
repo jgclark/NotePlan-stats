@@ -1,11 +1,9 @@
 #!/usr/bin/ruby
 #-------------------------------------------------------------------------------
 # NotePlan Task Stats Summariser
-# (c) JGC, v1.3.2, 24.7.2020
+# (c) JGC, v1.3.3, 23.8.2020
 #-------------------------------------------------------------------------------
-# Script to give stats on various tags in NotePlan's note and calendar files.
-# From NotePlan v2.5 it also covers notes in sub-directories, but ignores notes
-# in the special @Archive and @Trash sub-directories (or others beginning @).
+# Script to give stats on various tags in NotePlan's Notes and Daily files.
 #
 # It finds and summarises todos/tasks in note and calendar files:
 # - only covers active notes (not archived or cancelled)
@@ -16,12 +14,12 @@
 # Configuration:
 # - STORAGE_TYPE: select CloudKit (default from NP3.0), iCloudDrive (default until NP3) or Drobpox
 # - USERNAME: the username of the Dropbox/iCloud account to use
-# Requires gem colorize optparse (> gem install colorize optparse)
+# Requires gems colorize & optparse (> gem install colorize optparse)
 #-------------------------------------------------------------------------------
 # For more information please see the GitHub repository:
 #   https://github.com/jgclark/NotePlan-stats/
 #-------------------------------------------------------------------------------
-VERSION = '1.3.2'.freeze
+VERSION = '1.3.3'.freeze
 
 require 'date'
 require 'time'
@@ -54,6 +52,9 @@ OUTPUT_DIR = if STORAGE_TYPE == 'CloudKit'
              end
 puts "(Working dir: #{OUTPUT_DIR})"
 
+# Other variables that need to be global
+$done_dates = Hash.new(0) # Hash of dates, with new items defaulting to zero
+
 # Colours, using the colorization gem
 TotalColour = :light_yellow
 WarningColour = :light_red
@@ -85,7 +86,7 @@ class NPCalendar
 
     # mark this as a future date if the filename YYYYMMDD part as a string is greater than DateToday in YYYYMMDD format
     @is_future = true if @filename[0..7] > DATE_TODAY_YYYYMMDD
-    puts "initialising #{@filename} #{is_future}" if $verbose
+    puts "  initialising #{@filename}" if $verbose
 
     # Open file and read in. We've already checked it's not empty.
     # NB: needs the encoding line when run from launchctl, otherwise you get US-ASCII invalid byte errors (basically the 'locale' settings are different)
@@ -95,7 +96,13 @@ class NPCalendar
         header += line # join all lines together for later scanning
         # Counting number of open, waiting, done tasks etc.
         if line =~ /\[x\]/
-          @done += 1 # count this as a completed task
+          @done += 1 # count up the completed task
+          # Also make a note of the done date in the $done_dates array
+          line_scan = line.scan(/@done\((\d{4}\-\d{2}\-\d{2})/)
+          completed_date = Date.strptime(line_scan[0][0], '%Y-%m-%d') # we only want the first item, but don't know why it needs to be first of the first
+          c_d_ordinal = completed_date.strftime('%Y%j')
+          puts "    #{completed_date}: #{c_d_ordinal} #{$done_dates[c_d_ordinal]}" if $verbose
+          $done_dates[c_d_ordinal] += 1
         elsif line =~ /^\s*\*\s+/ && line !~ /\[\-\]/ # a task, but not cancelled (or by implication not completed)
           if line =~ /#waiting/
             @waiting += 1 # count this as waiting not open
@@ -175,6 +182,13 @@ class NPNote
       f.each_line do |line|
         if line =~ /\[x\]/
           @done += 1 # count this as a completed task
+          # For each done task, make a note of the done date in the $done_dates array
+          # TODO: change this to @done_dates, so we can later further characterise which are from Goal/Project/Other
+          line_scan = line.scan(/@done\((\d{4}\-\d{2}\-\d{2})/)
+          completed_date = Date.strptime(line_scan[0][0], '%Y-%m-%d') # we only want the first item, but don't know why it needs to be first of the first
+          c_d_ordinal = completed_date.strftime('%Y%j')
+          puts "    #{completed_date}: #{c_d_ordinal} #{$done_dates[c_d_ordinal]}" if $verbose
+          $done_dates[c_d_ordinal] += 1
         elsif line =~ /^\s*\*\s+/ && line !~ /\[\-\]/ # a task, but not cancelled (or by implication not completed)
           if line =~ /#waiting/
             @waiting += 1 # count this as waiting not open
@@ -223,8 +237,6 @@ opt_parser = OptionParser.new do |opts|
 end
 opt_parser.parse! # parse out options, leaving file patterns to process
 $verbose = options[:verbose]
-# puts options
-# exit
 
 # counts open (overdue) notes, tasks: open undated, waiting, done tasks, future tasks
 # breaks down by Goals/Projects/Other
@@ -235,23 +247,25 @@ tou = tpu = tgu = 0
 tow = tpw = tgw = 0
 tof = tpf = tgf = 0
 
+# Log time
+timeNow = Time.now
+timeNowFmt = timeNow.strftime(DATE_TIME_FORMAT)
+puts "Creating stats at #{timeNowFmt}:"
+
 #===============================================================================
 # Calendar stats
 #===============================================================================
 calFiles = [] # to hold all relevant calendar objects
-timeNow = Time.now
-timeNowFmt = timeNow.strftime(DATE_TIME_FORMAT)
-puts "Creating stats at #{timeNowFmt}:"
 
 # Read metadata for all note files in the NotePlan directory
 # (and sub-directories from v2.5, ignoring special ones starting '@')
 n = 0 # number of calendar entries to work on
 begin
   Dir.chdir(NP_CALENDAR_DIR)
-  Dir.glob('**/*.txt').each do |this_file|
+  Dir.glob(['**/*.txt', '**/*.md']).each do |this_file|
     # ignore this file if the directory starts with '@'
     fsize = File.size?(this_file) || 0
-    puts "  #{this_file} size #{fsize}" if $verbose
+    # puts "  #{this_file} size #{fsize}" if $verbose
     next unless this_file =~ /^[^@]/ # as can't get file glob including [^@] to work
     # ignore this file if it's empty
     next if File.zero?(this_file)
@@ -288,7 +302,7 @@ activeNotes = [] # list of ID of all active notes
 i = 0 # number of notes to work on
 begin
   Dir.chdir(NP_NOTE_DIR)
-  Dir.glob('**/*.txt').each do |this_file|
+  Dir.glob(['**/*.txt', '**/*.md']).each do |this_file|
     fsize = File.size?(this_file) || 0
     puts "  #{this_file} size #{fsize}" if $verbose
     next unless this_file =~ /^[^@]/ # as can't get file glob including [^@] to work
@@ -344,6 +358,13 @@ tu = tou + tpu + tgu
 tw = tow + tpw + tgw
 tf = tof + tpf + tgf
 
+#=======================================================================================
+# summarise the $done_dates
+# sort the hash, which turns it into an array
+ddsa = $done_dates.sort
+
+#=======================================================================================
+
 # Show results on screen
 puts "From #{activeNotes.count} active notes:"
 puts "\tNotes\tDone\tOverdue\tUndated\tWaiting\tFuture".colorize(TotalColour)
@@ -364,9 +385,35 @@ begin
                   tod, too, tou, tow, tof,
                   td, to, tu, tw, tf)
   filepath = OUTPUT_DIR + '/task_stats.csv'
-  f = File.open(filepath, 'a')
+  f = File.open(filepath, 'a') # append
   f.puts output
   f.close
-rescue StandardError => e
-  puts "ERROR: Hit #{e.exception.message} when writing out summary to #{filepath}".colorize(WarningColour)
+  puts "Also written this summary to #{OUTPUT_DIR}/task_stats.csv"
+
+  filepath = OUTPUT_DIR + '/task_done_dates.csv'
+  f = File.open(filepath, 'w') # overwrite
+  total_done_count = 0
+  f.puts 'orddate,count' # headers
+  ddsa.each do |d|
+    f.puts "#{d[0]},#{d[1]}"
+    total_done_count += d[1]
+  end
+  # i = 1
+  # out_date_line = ddsa[0][0]
+  # out_count_line = ddsa[0][1].to_s
+  # total_done_count = ddsa[0][1]
+  # while i < ddsa.size
+  #   od = ddsa[i][0]
+  #   oc = ddsa[i][1].to_s
+  #   out_date_line += ",#{od}"
+  #   out_count_line += ",#{oc}"
+  #   total_done_count += ddsa[i][1]
+  #   i += 1
+  # end
+  # f.puts out_date_line
+  # f.puts out_count_line
+  f.close
+  puts "\nAlso written summary of when the #{total_done_count} tasks were completed to #{OUTPUT_DIR}/task_done_dates.csv"
+  # rescue StandardError => e
+  #   puts "ERROR: Hit #{e.exception.message} when writing out summary to #{filepath}".colorize(WarningColour)
 end
