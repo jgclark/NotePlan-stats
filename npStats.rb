@@ -1,7 +1,7 @@
 #!/usr/bin/ruby
 #-------------------------------------------------------------------------------
 # NotePlan Task Stats Summariser
-# (c) JGC, v1.3.3, 23.8.2020
+# (c) JGC, v1.3.4, 25.8.2020
 #-------------------------------------------------------------------------------
 # Script to give stats on various tags in NotePlan's Notes and Daily files.
 #
@@ -19,7 +19,7 @@
 # For more information please see the GitHub repository:
 #   https://github.com/jgclark/NotePlan-stats/
 #-------------------------------------------------------------------------------
-VERSION = '1.3.3'.freeze
+VERSION = '1.3.4'.freeze
 
 require 'date'
 require 'time'
@@ -53,11 +53,33 @@ OUTPUT_DIR = if STORAGE_TYPE == 'CloudKit'
 puts "(Working dir: #{OUTPUT_DIR})"
 
 # Other variables that need to be global
-$done_dates = Hash.new(0) # Hash of dates, with new items defaulting to zero
+$cal_done_dates = Hash.new(0) # Hash of dates, with new items defaulting to zero
 
 # Colours, using the colorization gem
 TotalColour = :light_yellow
 WarningColour = :light_red
+
+#-------------------------------------------------------------------------
+# Function definitions
+#-------------------------------------------------------------------------
+# Print multi-dimensional 'tables' of data prettily
+# from https://stackoverflow.com/questions/27317023/print-out-2d-array
+def print_table(table, margin_width = 2)
+  # the margin_width is the spaces between columns (use at least 1)
+
+  column_widths = []
+  table.each do |row|
+    row.each.with_index do |cell, column_num|
+      column_widths[column_num] = [column_widths[column_num] || 0, cell.to_s.size].max
+    end
+  end
+
+  puts(table.collect do |row|
+    row.collect.with_index do |cell, column_num|
+      cell.to_s.ljust(column_widths[column_num] + margin_width)
+    end.join
+  end)
+end
 
 #-------------------------------------------------------------------------
 # Class definitions
@@ -98,11 +120,15 @@ class NPCalendar
         if line =~ /\[x\]/
           @done += 1 # count up the completed task
           # Also make a note of the done date in the $done_dates array
-          line_scan = line.scan(/@done\((\d{4}\-\d{2}\-\d{2})/)
-          completed_date = Date.strptime(line_scan[0][0], '%Y-%m-%d') # we only want the first item, but don't know why it needs to be first of the first
-          c_d_ordinal = completed_date.strftime('%Y%j')
-          puts "    #{completed_date}: #{c_d_ordinal} #{$done_dates[c_d_ordinal]}" if $verbose
-          $done_dates[c_d_ordinal] += 1
+          line_scan = line.scan(/@done\((\d{4}\-\d{2}\-\d{2})/).join('')
+          if line_scan.empty?
+            puts "    Warning: no @done(...) date found in '#{line.chomp}'".colorize(WarningColour) if $verbose
+          else
+            completed_date = Date.strptime(line_scan, '%Y-%m-%d') # we only want the first item, but don't know why it needs to be first of the first
+            c_d_ordinal = completed_date.strftime('%Y%j')
+            # puts "    #{completed_date}: #{c_d_ordinal} #{$done_dates[c_d_ordinal]}" if $verbose
+            $cal_done_dates[c_d_ordinal] += 1
+          end
         elsif line =~ /^\s*\*\s+/ && line !~ /\[\-\]/ # a task, but not cancelled (or by implication not completed)
           if line =~ /#waiting/
             @waiting += 1 # count this as waiting not open
@@ -145,6 +171,7 @@ class NPNote
   attr_reader :future
   attr_reader :undated
   attr_reader :filename
+  attr_reader :done_dates
 
   def initialize(this_file, id)
     # initialise instance variables (that persist with the class instance)
@@ -157,6 +184,7 @@ class NPNote
     @dueDate = nil
     @is_project = false
     @is_goal = false
+    @done_dates = Hash.new(0) # Hash of dates for this note, with new items defaulting to zero
 
     # initialise other variables (that don't need to persist with the class instance)
     headerLine = @metadata_line = nil
@@ -183,12 +211,16 @@ class NPNote
         if line =~ /\[x\]/
           @done += 1 # count this as a completed task
           # For each done task, make a note of the done date in the $done_dates array
-          # TODO: change this to @done_dates, so we can later further characterise which are from Goal/Project/Other
-          line_scan = line.scan(/@done\((\d{4}\-\d{2}\-\d{2})/)
-          completed_date = Date.strptime(line_scan[0][0], '%Y-%m-%d') # we only want the first item, but don't know why it needs to be first of the first
-          c_d_ordinal = completed_date.strftime('%Y%j')
-          puts "    #{completed_date}: #{c_d_ordinal} #{$done_dates[c_d_ordinal]}" if $verbose
-          $done_dates[c_d_ordinal] += 1
+          # (But sometimes done date is missing; if so, have to ignore.)
+          line_scan = line.scan(/@done\((\d{4}\-\d{2}\-\d{2})/).join('')
+          # puts "  #{line_scan} (#{line_scan.class})" if $verbose
+          if line_scan.empty?
+            puts "    Warning: no @done(...) date found in '#{line.chomp}'".colorize(WarningColour) if $verbose
+          else
+            completed_date = Date.strptime(line_scan, '%Y-%m-%d') # we only want the first item, but don't know why it needs to be first of the first
+            c_d_ordinal = completed_date.strftime('%Y%j')
+            @done_dates[c_d_ordinal] += 1
+          end
         elsif line =~ /^\s*\*\s+/ && line !~ /\[\-\]/ # a task, but not cancelled (or by implication not completed)
           if line =~ /#waiting/
             @waiting += 1 # count this as waiting not open
@@ -238,8 +270,44 @@ end
 opt_parser.parse! # parse out options, leaving file patterns to process
 $verbose = options[:verbose]
 
-# counts open (overdue) notes, tasks: open undated, waiting, done tasks, future tasks
-# breaks down by Goals/Projects/Other
+# Log time
+timeNow = Time.now
+timeNowFmt = timeNow.strftime(DATE_TIME_FORMAT)
+puts "Creating stats at #{timeNowFmt}:"
+
+#=======================================================================================
+# Note stats
+#=======================================================================================
+notes = [] # read in all notes
+activeNotes = [] # list of ID of all active notes
+tgdh = Hash.new(0)
+tpdh = Hash.new(0)
+todh = Hash.new(0)
+
+# Read metadata for all note files in the NotePlan directory
+# (and sub-directories from v2.5, ignoring special ones starting '@')
+i = 0 # number of notes to work on
+begin
+  Dir.chdir(NP_NOTE_DIR)
+  Dir.glob(['**/*.txt', '**/*.md']).each do |this_file|
+    fsize = File.size?(this_file) || 0
+    # puts "    #{this_file} size #{fsize}" if $verbose
+    next unless this_file =~ /^[^@]/ # as can't get file glob including [^@] to work
+    # ignore this file if it's empty
+    next if File.zero?(this_file)
+
+    notes[i] = NPNote.new(this_file, i)
+    if notes[i].is_active && !notes[i].is_cancelled
+      activeNotes.push(notes[i].id)
+      i += 1
+    end
+  end
+rescue StandardError => e
+  puts "ERROR: Hit #{e.exception.message} when reading notes directory".colorize(WarningColour)
+end
+
+# Count open (overdue) tasks, open undated, waiting, done tasks, future tasks
+# broken down by Goals/Projects/Other.
 ton = tpn = tgn = 0
 tod = tpd = tgd = 0
 too = tpo = tgo = 0
@@ -247,10 +315,90 @@ tou = tpu = tgu = 0
 tow = tpw = tgw = 0
 tof = tpf = tgf = 0
 
-# Log time
-timeNow = Time.now
-timeNowFmt = timeNow.strftime(DATE_TIME_FORMAT)
-puts "Creating stats at #{timeNowFmt}:"
+if i.positive? # if we have some notes to work on ...
+  activeNotes.each do |nn|
+    n = notes[nn]
+    ddh = n.done_dates
+    # .nil? ? [] : @done_dates[n]
+    # puts n.filename, ddh
+    if n.is_goal
+      tgn += 1
+      tgd += n.done
+      tgdh = ddh.merge!(tgdh) { |_key, oldval, newval| newval + oldval }
+      tgo += n.open
+      tgu += n.undated
+      tgw += n.waiting
+      tgf += n.future
+    elsif n.is_project
+      tpn += 1
+      tpd += n.done
+      tpdh = ddh.merge!(tpdh) { |_key, oldval, newval| newval + oldval }
+      tpo += n.open
+      tpu += n.undated
+      tpw += n.waiting
+      tpf += n.future
+    else
+      ton += 1
+      tod += n.done
+      todh = ddh.merge!(todh) { |_key, oldval, newval| newval + oldval }
+      too += n.open
+      tou += n.undated
+      tow += n.waiting
+      tof += n.future
+    end
+  end
+else
+  puts "Warning: No matching active note files found.\n".colorize(WarningColour)
+end
+
+#---------------------------------------------------------------------------------------
+# Summarise the done_dates:
+# - @done_dates from each of the Note files, for each type Goal/Project/Other
+# - for now ignore the $done_dates from the Daily 'calendar' files
+
+# sort the hashes, which turns them into arrays
+ddga = tgdh.sort
+ddpa = tpdh.sort
+ddoa = todh.sort
+# earliest_orddate = ddga[0][0].to_i < ddpa[0][0].to_i ? ddga[0][0].to_i : ddpa[0][0].to_i
+# earliest_orddate = earliest_orddate.to_i < ddoa[0][0].to_i ? earliest_orddate.to_i : ddoa[0][0].to_i
+# ord_date_today = TODAYS_DATE.strftime('%Y%j').to_i
+# puts "  #{earliest_orddate}, #{earliest_orddate.class}"
+# now append these three arrays onto a single one, with data in correct one of three columns,
+# with the key (the ordinal date) in column 0
+done_dates = Array.new { Array.new(4, 0) }
+ddga.each do |aa|
+  done_dates += [[aa[0], aa[1], 0, 0]]
+end
+ddpa.each do |aa|
+  done_dates += [[aa[0], 0, aa[1], 0]]
+end
+ddoa.each do |aa|
+  done_dates += [[aa[0], 0, 0, aa[1]]]
+end
+dds = done_dates.sort
+# Now compact the array summing items with the same key
+last_key = 0
+last_col1 = 0
+last_col2 = 0
+last_col3 = 0
+i = 0
+dds.each do |row|
+  if last_key == row[0]
+    row[1] += last_col1
+    row[2] += last_col2
+    row[3] += last_col3
+    dds[i - 1][0] = 0 # mark for deletion. Trying to delete in place mucks up the loop positioning
+  end
+  last_key = row[0]
+  last_col1 = row[1]
+  last_col2 = row[2]
+  last_col3 = row[3]
+  i += 1
+end
+# now remove the row set to delete
+dds.delete_if { |row| row[0] == 0 }
+done_dates = dds
 
 #===============================================================================
 # Calendar stats
@@ -291,79 +439,13 @@ else
 end
 puts
 
-#=======================================================================================
-# Note stats
-#=======================================================================================
-notes = [] # read in all notes
-activeNotes = [] # list of ID of all active notes
-
-# Read metadata for all note files in the NotePlan directory
-# (and sub-directories from v2.5, ignoring special ones starting '@')
-i = 0 # number of notes to work on
-begin
-  Dir.chdir(NP_NOTE_DIR)
-  Dir.glob(['**/*.txt', '**/*.md']).each do |this_file|
-    fsize = File.size?(this_file) || 0
-    puts "  #{this_file} size #{fsize}" if $verbose
-    next unless this_file =~ /^[^@]/ # as can't get file glob including [^@] to work
-    # ignore this file if it's empty
-    next if File.zero?(this_file)
-
-    notes[i] = NPNote.new(this_file, i)
-    if notes[i].is_active && !notes[i].is_cancelled
-      activeNotes.push(notes[i].id)
-      i += 1
-    end
-  end
-rescue StandardError => e
-  puts "ERROR: Hit #{e.exception.message} when reading notes directory".colorize(WarningColour)
-end
-
-# Count open (overdue) tasks, open undated, waiting, done tasks, future tasks
-# broken down by Goals/Projects/Other.
-if i.positive? # if we have some notes to work on ...
-  activeNotes.each do |nn|
-    n = notes[nn]
-    if n.is_goal
-      tgn += 1
-      tgd += n.done
-      tgo += n.open
-      tgu += n.undated
-      tgw += n.waiting
-      tgf += n.future
-    elsif n.is_project
-      tpn += 1
-      tpd += n.done
-      tpo += n.open
-      tpu += n.undated
-      tpw += n.waiting
-      tpf += n.future
-    else
-      ton += 1
-      tod += n.done
-      too += n.open
-      tou += n.undated
-      tow += n.waiting
-      tof += n.future
-    end
-  end
-else
-  puts "Warning: No matching active note files found.\n".colorize(WarningColour)
-end
-
+# Sum all the counts from Notes and Daily files
 tn = ton + tpn + tgn
 td = tod + tpd + tgd
 to = too + tpo + tgo
 tu = tou + tpu + tgu
 tw = tow + tpw + tgw
 tf = tof + tpf + tgf
-
-#=======================================================================================
-# summarise the $done_dates
-# sort the hash, which turns it into an array
-ddsa = $done_dates.sort
-
-#=======================================================================================
 
 # Show results on screen
 puts "From #{activeNotes.count} active notes:"
@@ -376,7 +458,6 @@ puts "TOTAL\t#{tn}\t#{td}\t#{to}\t#{tu}\t#{tw}\t#{tf}".colorize(TotalColour)
 # Append results to CSV file (unless --nofile option given)
 return unless options[:no_file].nil?
 
-# TODO: Check whether Summaries directory exists. If not, create it.
 begin
   output = format('%s,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d',
                   timeNowFmt, tgn, tpn, ton,
@@ -384,36 +465,23 @@ begin
                   tpd, tpo, tpu, tpw, tpf,
                   tod, too, tou, tow, tof,
                   td, to, tu, tw, tf)
+  # TODO: Check whether Summaries directory exists. If not, create it.
   filepath = OUTPUT_DIR + '/task_stats.csv'
   f = File.open(filepath, 'a') # append
   f.puts output
   f.close
-  puts "Also written this summary to #{OUTPUT_DIR}/task_stats.csv"
+  puts "Written this summary to #{OUTPUT_DIR}/task_stats.csv"
 
   filepath = OUTPUT_DIR + '/task_done_dates.csv'
   f = File.open(filepath, 'w') # overwrite
   total_done_count = 0
-  f.puts 'orddate,count' # headers
-  ddsa.each do |d|
-    f.puts "#{d[0]},#{d[1]}"
-    total_done_count += d[1]
+  f.puts 'orddate,Gcount,Pcount,Ocount' # headers
+  done_dates.each do |d|
+    f.puts "#{d[0]},#{d[1]},#{d[2]},#{d[3]}"
+    total_done_count += d[1] + d[2] + d[3]
   end
-  # i = 1
-  # out_date_line = ddsa[0][0]
-  # out_count_line = ddsa[0][1].to_s
-  # total_done_count = ddsa[0][1]
-  # while i < ddsa.size
-  #   od = ddsa[i][0]
-  #   oc = ddsa[i][1].to_s
-  #   out_date_line += ",#{od}"
-  #   out_count_line += ",#{oc}"
-  #   total_done_count += ddsa[i][1]
-  #   i += 1
-  # end
-  # f.puts out_date_line
-  # f.puts out_count_line
   f.close
   puts "\nAlso written summary of when the #{total_done_count} tasks were completed to #{OUTPUT_DIR}/task_done_dates.csv"
-  # rescue StandardError => e
-  #   puts "ERROR: Hit #{e.exception.message} when writing out summary to #{filepath}".colorize(WarningColour)
+rescue StandardError => e
+  puts "ERROR: Hit #{e.exception.message} when writing out summary to #{filepath}".colorize(WarningColour)
 end

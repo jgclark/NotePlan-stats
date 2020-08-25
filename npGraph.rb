@@ -36,6 +36,7 @@
 # - StorageType: select iCloud (default) or Drobpox
 # - Username: the username of the Dropbox/iCloud account to use
 #-------------------------------------------------------------------------------
+# - v0.2.2, 23.8.2020 - change tasks completed per day graph to differentiate between Goal/Project/Other
 # - v0.2.1, 23.8.2020 - add graph for number of tasks completed per day over last 6 months (using local gnuplot)
 # - v0.2, 11.7.2020 - produces graphs of number of open tasks over time for Goals/Projects/Other (using Google Charts API)
 VERSION = '0.2.1'.freeze
@@ -115,8 +116,9 @@ end
 
 # Read file of how many tasks were done when
 # Example data from task_done_dates.csv file:
-#   2020214,2020215,2020216,2020217,2020235 (i.e. YYYYOOO ordinal dates)
-#   1,2,4,1,3 (i.e. count)
+#   orddate (i.e. YYYYOOO ordinal dates),Gcount,Pcount,Ocount
+#   2020214,1,4,3 
+#   2020216,1,2,4
 # Note that this is sparse: not every date in the range will be present
 begin
   td_table = CSV.parse(File.read(INPUT_DIR + '/task_done_dates.csv'), headers: true, converters: :integer)
@@ -131,12 +133,17 @@ end
 # first create non-sparse table of data for last 180 days (approx 6 months)
 ord_date_today = TODAYS_DATE.strftime('%Y%j').to_i
 ord_date_6m_ago = (TODAYS_DATE << 6).strftime('%Y%j').to_i
-done_last6m = Array.new(180, 0)
+done_goal_last6m = Array.new(180, 0)
+done_project_last6m = Array.new(180, 0)
+done_other_last6m = Array.new(180, 0)
 d = ord_date_6m_ago
 td_table.each do |tdt|
-  done_last6m[tdt[0] - ord_date_6m_ago] = tdt[1] if tdt[0] > ord_date_6m_ago
+  if tdt[0] > ord_date_6m_ago
+    done_goal_last6m[tdt[0] - ord_date_6m_ago] = tdt[1]
+    done_project_last6m[tdt[0] - ord_date_6m_ago] = tdt[2]
+    done_other_last6m[tdt[0] - ord_date_6m_ago] = tdt[3]
 end
-puts done_last6m.class
+# puts done_last6m.class
 # first_done_date = td_table.by_col['orddate'].min
 # last_done_date = td_table.by_col['orddate'].max
 # first_date_to_use = ord_date_6m_ago > first_done_date ? ord_date_6m_ago : first_done_date
@@ -146,16 +153,16 @@ puts done_last6m.class
 # puts 'done_dates: ', done_dates
 # done_last6m = done_dates
 
-# FIXME: Can't get this GoogleChart to work
+# FIXME: Can't get this GoogleChart to work. Or is it doing just first 11 items or so?
 chart_td = Gchart.new(type: 'bar',
                       stacked: false,
                       title: "When tasks were done (6 months to #{TODAYS_DATE})",
                       # size: '1200x600',
                       # :height => '500',
                       # bar_width_and_spacing: { spacing: 2, width: 5 },
-                      data: [done_last6m],
+                      data: [done_goal_last6m, done_project_last6m, done_other_last6m],
                       # :min_value => 0, # scale this properly
-                      bar_colors: '2222ff,ff0000',
+                      bar_colors: '2222ff,ff0000,00ff00',
                       filename: 'done_tasks_6m.png') # define chart
 chart_td.file # write chart out
 puts '-> done_tasks_6m.png'
@@ -184,11 +191,13 @@ Gnuplot.open do |gp|
     # plot.boxwidth '0.9 relative'
     # plot.style 'fill solid 1.0'
     x = (0..179).collect { |v| (v.to_f - 179) / 30 }
-    y = done_last6m
+    yg = done_goal_last6m
+    yp = done_project_last6m
+    yo = done_other_last6m
     plot.xrange '[-6:0]'
     plot.yrange '[0:10<*]' # keep max at least 10
-    plot.data << Gnuplot::DataSet.new([x, y]) do |ds|
-      ds.with = 'boxes fill solid 0.9'
+    plot.data << Gnuplot::DataSet.new([x, yg, yp, yo]) do |ds|
+      ds.with = 'boxes fill solid 0.6'
       ds.notitle
     end
   end

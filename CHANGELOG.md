@@ -1,7 +1,11 @@
 # CHANGELOG
 
 ## for npStats
-### v1.3.3, 22.8.2020
+
+### v1.3.4, 25.8.2020
+- [Change] The summary of how many tasks were completed on which ordinal date (unless --nofile option given) now differentiates Goal/Project/Other
+
+### v1.3.3, 23.8.2020
 - [New] Support data files with .md extensions as well as .txt (issue ?)
 - [New] Write out a summary of how many tasks were completed on which ordinal date (unless --nofile option given)
 
