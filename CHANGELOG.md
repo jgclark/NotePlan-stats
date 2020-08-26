@@ -3,7 +3,7 @@
 ## for npStats
 
 ### v1.3.4, 25.8.2020
-- [Change] The summary of how many tasks were completed on which ordinal date (unless --nofile option given) now differentiates Goal/Project/Other
+- [Change] The summary file of how many tasks were completed on which ordinal date (unless --nofile option given) now differentiates between Goal/Project/Other.
 
 ### v1.3.3, 23.8.2020
 - [New] Support data files with .md extensions as well as .txt (issue ?)
@@ -40,13 +40,14 @@
 ## v1.1, 29.2.2020
 - Split a single earlier script into these two.
 
-
 ## v1.0.1, 11.2.2020
 Initial load into this GitHub project.
 
 ## for npTagStats
+
 ### v1.3.3, 16.8.2020
 - [New] npTagStats Sort both types out of @mention summary output (issue #6)
+- [Improve] improve documentation
 
 ### v1.3.2, 10.8.2020
 - [New] Add feature to count and sum @mention(n) and output (towards issue #6)

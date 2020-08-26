@@ -290,8 +290,6 @@ i = 0 # number of notes to work on
 begin
   Dir.chdir(NP_NOTE_DIR)
   Dir.glob(['**/*.txt', '**/*.md']).each do |this_file|
-    fsize = File.size?(this_file) || 0
-    # puts "    #{this_file} size #{fsize}" if $verbose
     next unless this_file =~ /^[^@]/ # as can't get file glob including [^@] to work
     # ignore this file if it's empty
     next if File.zero?(this_file)
@@ -412,8 +410,6 @@ begin
   Dir.chdir(NP_CALENDAR_DIR)
   Dir.glob(['**/*.txt', '**/*.md']).each do |this_file|
     # ignore this file if the directory starts with '@'
-    fsize = File.size?(this_file) || 0
-    # puts "  #{this_file} size #{fsize}" if $verbose
     next unless this_file =~ /^[^@]/ # as can't get file glob including [^@] to work
     # ignore this file if it's empty
     next if File.zero?(this_file)

@@ -71,6 +71,28 @@ INPUT_DIR = if STORAGE_TYPE == 'iCloud'
 TotalColour = :light_yellow
 WarningColour = :light_red
 
+#-------------------------------------------------------------------------
+# Function definitions
+#-------------------------------------------------------------------------
+# Print multi-dimensional 'tables' of data prettily
+# from https://stackoverflow.com/questions/27317023/print-out-2d-array
+def print_table(table, margin_width = 2)
+  # the margin_width is the spaces between columns (use at least 1)
+
+  column_widths = []
+  table.each do |row|
+    row.each.with_index do |cell, column_num|
+      column_widths[column_num] = [column_widths[column_num] || 0, cell.to_s.size].max
+    end
+  end
+
+  puts(table.collect do |row|
+    row.collect.with_index do |cell, column_num|
+      cell.to_s.ljust(column_widths[column_num] + margin_width)
+    end.join
+  end)
+end
+
 #===============================================================================
 # Main logic
 #===============================================================================
@@ -117,7 +139,7 @@ end
 # Read file of how many tasks were done when
 # Example data from task_done_dates.csv file:
 #   orddate (i.e. YYYYOOO ordinal dates),Gcount,Pcount,Ocount
-#   2020214,1,4,3 
+#   2020214,1,4,3
 #   2020216,1,2,4
 # Note that this is sparse: not every date in the range will be present
 begin
@@ -133,16 +155,20 @@ end
 # first create non-sparse table of data for last 180 days (approx 6 months)
 ord_date_today = TODAYS_DATE.strftime('%Y%j').to_i
 ord_date_6m_ago = (TODAYS_DATE << 6).strftime('%Y%j').to_i
+puts ord_date_6m_ago
 done_goal_last6m = Array.new(180, 0)
 done_project_last6m = Array.new(180, 0)
 done_other_last6m = Array.new(180, 0)
 d = ord_date_6m_ago
 td_table.each do |tdt|
-  if tdt[0] > ord_date_6m_ago
-    done_goal_last6m[tdt[0] - ord_date_6m_ago] = tdt[1]
-    done_project_last6m[tdt[0] - ord_date_6m_ago] = tdt[2]
-    done_other_last6m[tdt[0] - ord_date_6m_ago] = tdt[3]
+  d = tdt[0]
+  next unless d > ord_date_6m_ago
+
+  done_goal_last6m[d - ord_date_6m_ago] = tdt[1]
+  done_project_last6m[d - ord_date_6m_ago] = tdt[2]
+  done_other_last6m[d - ord_date_6m_ago] = tdt[3]
 end
+puts done_other_last6m, done_other_last6m.size
 # puts done_last6m.class
 # first_done_date = td_table.by_col['orddate'].min
 # last_done_date = td_table.by_col['orddate'].max
@@ -187,19 +213,31 @@ Gnuplot.open do |gp|
     plot.terminal 'png'
     plot.output File.expand_path('done_tasks_6m_ggp.png', __dir__)
     plot.title "When tasks were done (6 months to #{TODAYS_DATE})"
-    plot.xlabel 'months ago'
+    plot.xlabel 'date'
     # plot.boxwidth '0.9 relative'
     # plot.style 'fill solid 1.0'
-    x = (0..179).collect { |v| (v.to_f - 179) / 30 }
+    x = (0..179).to_a
+    # x = (0..179).collect { |v| (v.to_f - 179) / 30 }
     yg = done_goal_last6m
     yp = done_project_last6m
     yo = done_other_last6m
-    plot.xrange '[-6:0]'
     plot.yrange '[0:10<*]' # keep max at least 10
-    plot.data << Gnuplot::DataSet.new([x, yg, yp, yo]) do |ds|
+    plot.size '1,1'
+    plot.origin '0,0'
+    multiplot.layout '3,1 columnsfirst scale 1.1,0.9'
+    plot.data << Gnuplot::DataSet.new([x, yg]) do |ds|
       ds.with = 'boxes fill solid 0.6'
       ds.notitle
     end
+    plot.data << Gnuplot::DataSet.new([x, yp]) do |ds|
+      ds.with = 'boxes fill solid 0.6'
+      ds.notitle
+    end
+    plot.data << Gnuplot::DataSet.new([x, yo]) do |ds|
+      ds.with = 'boxes fill solid 0.6'
+      ds.notitle
+    end
+    multiplot.unset
   end
 end
 exit
