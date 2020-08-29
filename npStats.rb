@@ -1,7 +1,7 @@
 #!/usr/bin/ruby
 #-------------------------------------------------------------------------------
 # NotePlan Task Stats Summariser
-# (c) JGC, v1.3.4, 25.8.2020
+# (c) JGC, v1.3.4, 29.8.2020
 #-------------------------------------------------------------------------------
 # Script to give stats on various tags in NotePlan's Notes and Daily files.
 #
@@ -19,7 +19,7 @@
 # For more information please see the GitHub repository:
 #   https://github.com/jgclark/NotePlan-stats/
 #-------------------------------------------------------------------------------
-VERSION = '1.3.4'.freeze
+VERSION = '1.3.5'.freeze
 
 require 'date'
 require 'time'
@@ -29,7 +29,7 @@ require 'optparse'
 
 # User-settable constants
 DATE_FORMAT = '%d.%m.%y'.freeze
-DATE_TIME_FORMAT = '%e %b %Y %H:%M'.freeze
+DATE_TIME_FORMAT = '%d %b %Y %H:%M'.freeze
 USERNAME = 'jonathan'.freeze
 
 # Other Constant Definitions
@@ -271,9 +271,9 @@ opt_parser.parse! # parse out options, leaving file patterns to process
 $verbose = options[:verbose]
 
 # Log time
-timeNow = Time.now
-timeNowFmt = timeNow.strftime(DATE_TIME_FORMAT)
-puts "Creating stats at #{timeNowFmt}:"
+time_now = Time.now
+time_now_format = time_now.strftime(DATE_TIME_FORMAT)
+puts "Creating stats at #{time_now_format}:"
 
 #=======================================================================================
 # Note stats
@@ -397,6 +397,7 @@ end
 # now remove the row set to delete
 dds.delete_if { |row| row[0] == 0 }
 done_dates = dds
+# TODO: change back to using YYYY-MM-DD dates
 
 #===============================================================================
 # Calendar stats
@@ -456,7 +457,7 @@ return unless options[:no_file].nil?
 
 begin
   output = format('%s,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d',
-                  timeNowFmt, tgn, tpn, ton,
+                  time_now_format, tgn, tpn, ton,
                   tgd, tgo, tgu, tgw, tgf,
                   tpd, tpo, tpu, tpw, tpf,
                   tod, too, tou, tow, tof,
@@ -471,7 +472,7 @@ begin
   filepath = OUTPUT_DIR + '/task_done_dates.csv'
   f = File.open(filepath, 'w') # overwrite
   total_done_count = 0
-  f.puts 'orddate,Gcount,Pcount,Ocount' # headers
+  f.puts 'Date,Goals,Projects,Others' # headers
   done_dates.each do |d|
     f.puts "#{d[0]},#{d[1]},#{d[2]},#{d[3]}"
     total_done_count += d[1] + d[2] + d[3]
