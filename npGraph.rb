@@ -47,7 +47,7 @@ require 'time'
 require 'etc' # for login lookup, though currently not used
 require 'colorize' # for coloured output using https://github.com/fazibear/colorize
 require 'optparse'
-require 'googlecharts'
+# require 'googlecharts'
 require 'csv' # basic help at https://www.rubyguides.com/2018/10/parse-csv-ruby/
 require 'array_arithmetic' # info at https://github.com/CJAdeszko/array_arithmetic
 require 'gnuplot'
