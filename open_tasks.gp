@@ -97,7 +97,7 @@ plot FILENAME using 1:($6+$8) with lines ls 1 axes x1y1 title 'Goals', \
   "" using 1:(($5)/($5+$6+$8)*100) with lines ls 2 axes x1y2 title '% tasks complete'
 set tmargin 0
 plot FILENAME using 1:($11+$13) with lines ls 3 axes x1y1 title 'Projects', \
-  "" using 1:(($10)/($10+$11+$12)*100) with lines ls 4 axes x1y2 title '% tasks complete'
+  "" using 1:(($10)/($10+$11+$13)*100) with lines ls 4 axes x1y2 title '% tasks complete'
 set bmargin 2
 set xtics out nomirror font ",8"
 plot FILENAME using 1:($16+$18) with lines ls 5 axes x1y1 title 'Others', \
