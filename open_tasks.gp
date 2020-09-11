@@ -1,7 +1,8 @@
 # gnuplot specification to plot how many open tasks there are over time,
 # differentiating goal/projects/other.
+# Also plot % tasks completed for each type.
 # uses Gnuplot 5.2, but would probaby work back to Gnuplot 4.8
-# JGC, 29.8.2020
+# JGC, 12.9.2020
 
 FILENAME="~/task_stats.csv"
 date=system("date +'%e %b %y'")
@@ -93,13 +94,13 @@ set output "open-tasks.png"
 set multiplot layout 3,1 downwards \
   title sprintf("Open tasks in NotePlan (at %s)", date) font ",11"
 set y2range [0:100]
-plot FILENAME using 1:($6+$8) with lines ls 1 axes x1y1 title 'Goals', \
-  "" using 1:(($5)/($5+$6+$8)*100) with lines ls 2 axes x1y2 title '% tasks complete'
+plot FILENAME using 1:($6+$7+$8) with lines ls 1 axes x1y1 title 'Goals', \
+  "" using 1:(($5)/($5+$6+$7+$8)*100) with lines ls 2 axes x1y2 title '% tasks complete'
 set tmargin 0
-plot FILENAME using 1:($11+$13) with lines ls 3 axes x1y1 title 'Projects', \
-  "" using 1:(($10)/($10+$11+$13)*100) with lines ls 4 axes x1y2 title '% tasks complete'
+plot FILENAME using 1:($11+$12+$13) with lines ls 3 axes x1y1 title 'Projects', \
+  "" using 1:(($10)/($10+$11+$12+$13)*100) with lines ls 4 axes x1y2 title '% tasks complete'
 set bmargin 2
 set xtics out nomirror font ",8"
-plot FILENAME using 1:($16+$18) with lines ls 5 axes x1y1 title 'Others', \
-  "" using 1:(($15)/($15+$16+$18)*100) with lines ls 6 axes x1y2 title '% tasks complete'
+plot FILENAME using 1:($16+$17+$18) with lines ls 5 axes x1y1 title 'Others', \
+  "" using 1:(($15)/($15+$16+$17+$18)*100) with lines ls 6 axes x1y2 title '% tasks complete'
 unset multiplot
