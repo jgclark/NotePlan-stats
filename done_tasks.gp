@@ -1,10 +1,15 @@
 # gnuplot specification to plot how many tasks were completed over time,
-# differentiating goal/projects/other
+# differentiating goal/projects/other.
+# Assumes data structure:
+#   Date,Goals,Projects,Others
+#   2019051,0,0,1
+#   2019064,0,1,0 etc.
 # uses Gnuplot 5.2, but would probaby work back to Gnuplot 4.8
-# JGC, 29.8.2020
+# JGC, 12.9.2020
+# TODO: Change the done_tasks to be last year only (in weeks)
 
 FILENAME="~/task_done_dates.csv"
-date=system("date +%F")
+todays_date=system("date +%d.%m.%Y")
 
 # version 1: stacked histogram
 # set term png size 600, 400 font "Avenir,8"
@@ -33,7 +38,7 @@ date=system("date +%F")
 # set key inside top right vertical nobox
 # set key reverse enhanced
 # set key autotitle columnheader    
-# set title 'When tasks were done' #(last 6 months)'
+# set title 'When tasks were done'
 # set xtics rotate by 45 right nomirror # turn off top ticks
 # set ytics nomirror
 # set yrange [0:10<*<20]
@@ -81,7 +86,7 @@ date=system("date +%F")
 # # use stats to count how many data items. every ::2 = starting row 2
 # stats FILENAME every ::1 using 1 nooutput 
 # rows = int(STATS_records)
-# set title sprintf("When tasks were done (%d rows as at %s)", rows, date)
+# set title sprintf("When tasks were done (%d rows as at %s)", rows, todays_date)
 # set xdata time
 # set timefmt "%Y%j"
 # set format x "%d.%m.%y"
@@ -93,6 +98,8 @@ date=system("date +%F")
 #   "" using 1:($3+$2) bins=50 with boxes lc rgb "blue", \
 #   "" using 1:2 bins=50 with boxes lc rgb "red"
 
+year_ago_date=system("date -v-1y +%d.%m.%Y")
+year_ago_ordinal=system("date -v-1y +%Y%j")
 
 # version 5: column stacked, and now summarised using 14-day-long 'bins'
 # tidied up X axis labels etc.
@@ -111,8 +118,9 @@ set key autotitle columnheader
 stats FILENAME every ::1 using 1 nooutput
 rows = int(STATS_records)
 date_range = (strptime("%Y%j",sprintf("%d",STATS_max)) - strptime("%Y%j", sprintf("%d",STATS_min)))/60/60/24
-bins_to_use = date_range/14
-set title sprintf("When tasks were done (%d fortnights, as at %s)", bins_to_use, date) font "Avenir,10"
+# TODO change to just the last year
+bins_to_use = date_range/7
+set title sprintf("How many tasks completed (%d weeks up to %s)", bins_to_use, todays_date) font "Avenir,10"
 set xdata time
 set timefmt "%Y%j"
 set format x "%b %y"
@@ -136,7 +144,7 @@ exit
 # LINEMIN=100
 # LINEMAX=130
 # #create a function that accepts linenumber as first arg
-# #an returns second arg if linenumber in the given range.
+# #and returns second arg if linenumber in the given range.
 # InRange(x,y)=((x>=LINEMIN) ? ((x<=LINEMAX) ? y:1/0) : 1/0)
 
 
@@ -148,5 +156,5 @@ exit
 # - can refer to columns by "header_name" not just number
 # - useful note about getting x axis as dates: http://psy.swansea.ac.uk/staff/carter/gnuplot/gnuplot_time_histograms.htm
 # - way of addinfg timestamp to output: 
-#   set timestamp "%d.%m.%y" {top|bottom} {{no}rotate} {offset <xoff>{,<yoff>}}  {textcolor <colorspec>}
+#   set timestamp "%d.%m.%Y" {top|bottom} {{no}rotate} {offset <xoff>{,<yoff>}}  {textcolor <colorspec>}
 #   show timestamp

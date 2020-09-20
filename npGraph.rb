@@ -68,6 +68,7 @@ INPUT_DIR = if STORAGE_TYPE == 'iCloud'
             else
               "/Users/#{USERNAME}" # for CloudKit use home directory
             end
+WORKING_DIR = '/Users/jonathan/GitHub/NotePlan-stats'.freeze
 
 # Colours, using the colorization gem
 TotalColour = :light_yellow
@@ -98,6 +99,10 @@ end
 #===============================================================================
 # Main logic
 #===============================================================================
+
+# Make sure we have set working directory to /Users/jonathan/GitHub/NotePlan-stats
+# which is needed if this is run automatically as a launchctl script.
+Dir.chdir(WORKING_DIR)
 
 # Setup program options
 options = {}
@@ -234,7 +239,7 @@ end
 # Alternatively use separate gnuplot definition file and call:
 # - https://stackoverflow.com/questions/2232/how-to-call-shell-commands-from-ruby
 gp_commands = 'done_tasks.gp'
-gp_call_result = system("gnuplot '#{gp_commands}'")
+gp_call_result = system("/usr/local/bin/gnuplot '#{gp_commands}'")
 puts 'ERROR: Hit problem when creating graphs using gnuplot'.colorize(WarningColour) unless gp_call_result
 
 # -----------------------------------------------------------------------------------
@@ -254,8 +259,8 @@ rescue StandardError => e
   puts "ERROR: '#{e.exception.message}' when reading #{INPUT_DIR}/task_stats.csv".colorize(WarningColour)
 end
 
-gp_commands = 'open_tasks.gp'.freeze
-gp_call_result = system("gnuplot '#{gp_commands}'")
+gp_commands = 'open_tasks.gp'
+gp_call_result = system("/usr/local/bin/gnuplot '#{gp_commands}'")
 puts 'ERROR: Hit problem when creating graphs using gnuplot'.colorize(WarningColour) unless gp_call_result
 
 exit
