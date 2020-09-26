@@ -120,11 +120,11 @@ class NPCalendar
         if line =~ /\[x\]/
           @done += 1 # count up the completed task
           # Also make a note of the done date in the $done_dates array
-          line_scan = line.scan(/@done\((\d{4}\-\d{2}\-\d{2})/).join('')
-          if line_scan.empty?
+          done_date_string = line.scan(/@done\((\d{4}\-\d{2}\-\d{2})/).join('')
+          if done_date_string.empty?
             puts "    Warning: no @done(...) date found in '#{line.chomp}'".colorize(WarningColour) if $verbose
           else
-            completed_date = Date.strptime(line_scan, '%Y-%m-%d') # we only want the first item, but don't know why it needs to be first of the first
+            completed_date = Date.strptime(done_date_string, '%Y-%m-%d') # we only want the first item, but don't know why it needs to be first of the first
             c_d_ordinal = completed_date.strftime('%Y%j')
             # puts "    #{completed_date}: #{c_d_ordinal} #{$done_dates[c_d_ordinal]}" if $verbose
             $cal_done_dates[c_d_ordinal] += 1
@@ -452,7 +452,7 @@ puts "Project\t#{tpn}\t#{tpd}\t#{tpo}\t#{tpu}\t#{tpw}\t#{tpf}"
 puts "Other\t#{ton}\t#{tod}\t#{too}\t#{tou}\t#{tow}\t#{tof}"
 puts "TOTAL\t#{tn}\t#{td}\t#{to}\t#{tu}\t#{tw}\t#{tf}".colorize(TotalColour)
 
-# Append results to CSV file (unless --nofile option given)
+# Append results to CSV files (unless --nofile option given)
 return unless options[:no_file].nil?
 
 begin
@@ -474,7 +474,10 @@ begin
   total_done_count = 0
   f.puts 'Date,Goals,Projects,Others' # headers
   done_dates.each do |d|
-    f.puts "#{d[0]},#{d[1]},#{d[2]},#{d[3]}"
+    # convert date from ordinal back to YYYY-MM-DD
+    date_temp = Date.strptime(d[0], '%Y%j') # we only want the first item, but don't know why it needs to be first of the first
+    date_YMD = date_temp.strftime('%Y-%m-%d')
+    f.puts "#{date_YMD},#{d[1]},#{d[2]},#{d[3]}"
     total_done_count += d[1] + d[2] + d[3]
   end
   f.close

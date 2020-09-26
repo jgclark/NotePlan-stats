@@ -1,54 +1,54 @@
 # gnuplot specification to plot net number of tasks completed vs added over time,
 # differentiating goal/projects/other.
 # Assumes data structure:
-#   Date,Goals,Projects,Others
-#   2019051,0,0,1
-#   2019064,0,1,0 etc.
+#   Date,Added Goals,Added Projects,Added Others, Done Goals, Done Projects, Done Others, total net G, total net P, total net O
+#   2020-09-20,0,2,0, 0,3,1, 0,1,1
+#   2020-09-22,0,1,0, 0,0,2, 0,0,3 etc.
 # uses Gnuplot 5.2, but would probaby work back to Gnuplot 4.8
-# JGC, 13.9.2020
-# TODO: Change the done_tasks to be last year only (in weeks)
+# JGC, 26.9.2020
 
-#==================
-# Use Done(today)-(Open(today)-Open(yesterday))
-#==================
-
-FILENAME="~/task_done_dates.csv"
+DATAFILE="~/tasks_net.csv"
 todays_date=system("date +%d.%m.%Y")
-year_ago_date=system("date -v-1y +%d.%m.%Y")
-year_ago_ordinal=system("date -v-1y +%Y%j")
 
-# version 5: column stacked, and now summarised using 14-day-long 'bins'
-# tidied up X axis labels etc.
+# column stacked, and now summarised using week-long 'bins'
 reset # reset all things set by 'set' command, apart from term
-clear # clear the current output device. Is this needed?
-set term png size 800, 300 font "Avenir,9"
+# clear # clear the current output device. Is this needed?
+set term png size 800, 400 font "Avenir,9"
 set datafile separator comma
-set boxwidth 0.9 relative
+set boxwidth 1.0 relative
 set style fill solid 1.0 border
 set border 3 # just bottom + left
-set key inside top left vertical nobox
+set key inside bottom center vertical box 
+set key maxrows 3 maxcols 3
 set key reverse enhanced
 set key Left # as in left-algined; different from 'left' placement
-set key autotitle columnheader
+# set key autotitle columnheader
 # use stats to count how many data items
-stats FILENAME every ::1 using 1 nooutput
-rows = int(STATS_records)
-date_range = (strptime("%Y%j",sprintf("%d",STATS_max)) - strptime("%Y%j", sprintf("%d",STATS_min)))/60/60/24
-# TODO change to just the last year
-bins_to_use = date_range/7
-set title sprintf("Net tasks completed vs added (%d weeks up to %s)", bins_to_use, todays_date) font "Avenir,10"
+stats DATAFILE every ::1 using 1 nooutput
+rows = int(STATS_records)+1
+date_range = (strptime("%Y-%m-%d",sprintf("%d",STATS_max)) - strptime("%Y-%m-%d", sprintf("%d",STATS_min)))/60/60/24
+bins_to_use = rows / 7
+# bins_to_use = 8 # 91 #date_range / 7
+set title sprintf("Net tasks completed vs added (%d weeks up to %s)", bins_to_use, todays_date) font "Avenir,12"
 set xdata time
-set timefmt "%Y%j"
-set format x "%b %y"
+set yrange [-150:100]
+set timefmt "%Y-%m-%d"
+set format x "%d %b %y"
 set xtics scale 1,0 out center nomirror 
-set ytics scale 1,0 out nomirror 
+set ytics scale 1,0 out nomirror
+set xzeroaxis
+show xzeroaxis
 # do main plot, summing together first 2 types to make it look like proper stacked
-set output "done_tasks.png"
-plot FILENAME using 1:($4+$3+$2) bins=bins_to_use with boxes lc rgb "light-green" #,\
-#  "" using 1:($3+$2) bins=bins_to_use with boxes lc rgb "blue", \
-#  "" using 1:2 bins=bins_to_use with boxes lc rgb "red"
-
-exit
+set output "net_tasks.png"
+plot DATAFILE using 1:($5+$6+$7) bins=bins_to_use with boxes lc "#40ee40" title "Completed Other tasks",\
+ "" using 1:($5+$6) bins=bins_to_use with boxes lc "#4d4df0" title "Completed Project tasks",\
+ "" using 1:($5) bins=bins_to_use with boxes lc "#f04040" title "Completed Goal tasks",\
+ "" using 1:(-$2-$3-$4) bins=bins_to_use with boxes lc "#90ee90" title "Added Other tasks",\
+ "" using 1:(-$2-$3) bins=bins_to_use with boxes lc "#9090f0" title "Added Project tasks",\
+ "" using 1:(-$2) bins=bins_to_use with boxes lc "#f0a2a2" title "Added Goal tasks",\
+ "" using 1:10 with lines lw 2 lc "#10ce10" title "Cum. Other (net)",\
+ "" using 1:9 with lines lw 2 lc "#1010f0" title "Cum. Project (net)",\
+ "" using 1:8 with lines lw 2 lc "#c01010" title "Cum. Goal (net)"
 
 #-----------------
 # Currently using hacky way of using just last 60 lines; it wouldn't work for data groups in same file:

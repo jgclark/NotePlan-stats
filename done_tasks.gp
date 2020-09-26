@@ -2,10 +2,10 @@
 # differentiating goal/projects/other.
 # Assumes data structure:
 #   Date,Goals,Projects,Others
-#   2019051,0,0,1
-#   2019064,0,1,0 etc.
+#   2019-02-03,0,0,1
+#   2019-02-04,0,1,0 etc.
 # uses Gnuplot 5.2, but would probaby work back to Gnuplot 4.8
-# JGC, 12.9.2020
+# JGC, 23.9.2020
 # TODO: Change the done_tasks to be last year only (in weeks)
 
 FILENAME="~/task_done_dates.csv"
@@ -61,7 +61,7 @@ todays_date=system("date +%d.%m.%Y")
 # set key autotitle columnheader    
 # set title 'When tasks were done (last 3 months)'
 # set xdata time
-# set timefmt "%Y%j"
+# set timefmt "%Y-%m-%d"
 # set format x "%d/%m/%y"
 # set xtics rotate by 45 right nomirror
 # set ytics nomirror
@@ -88,7 +88,7 @@ todays_date=system("date +%d.%m.%Y")
 # rows = int(STATS_records)
 # set title sprintf("When tasks were done (%d rows as at %s)", rows, todays_date)
 # set xdata time
-# set timefmt "%Y%j"
+# set timefmt "%Y-%m-%d"
 # set format x "%d.%m.%y"
 # set xtics rotate by 45 right nomirror 
 # set ytics nomirror
@@ -122,7 +122,7 @@ date_range = (strptime("%Y%j",sprintf("%d",STATS_max)) - strptime("%Y%j", sprint
 bins_to_use = date_range/7
 set title sprintf("How many tasks completed (%d weeks up to %s)", bins_to_use, todays_date) font "Avenir,10"
 set xdata time
-set timefmt "%Y%j"
+set timefmt "%Y-%m-%d"
 set format x "%b %y"
 set xtics scale 1,0 out center nomirror 
 set ytics scale 1,0 out nomirror 

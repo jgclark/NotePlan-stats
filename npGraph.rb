@@ -69,6 +69,8 @@ INPUT_DIR = if STORAGE_TYPE == 'iCloud'
               "/Users/#{USERNAME}" # for CloudKit use home directory
             end
 WORKING_DIR = '/Users/jonathan/GitHub/NotePlan-stats'.freeze
+NET_FILENAME = "#{INPUT_DIR}/tasks_net.csv"
+net_lookback_days = 56 # 8 weeks
 
 # Colours, using the colorization gem
 TotalColour = :light_yellow
@@ -136,42 +138,42 @@ $verbose = options[:verbose]
 
 # Read file of how many tasks were done when
 # Example data from task_done_dates.csv file:
-#   orddate (i.e. YYYYOOO ordinal dates),Gcount,Pcount,Ocount
-#   2020214,1,4,3
-#   2020216,1,2,4
-# Note that this is sparse: not every date in the range will be present
-begin
-  td_table = CSV.parse(File.read(INPUT_DIR + '/task_done_dates.csv'), headers: true, converters: :integer)
-  puts "Created #{td_table.inspect} from reading task_done_dates.csv into td_table"
-rescue StandardError => e
-  puts "ERROR: '#{e.exception.message}' when reading #{INPUT_DIR}/task_done_dates.csv".colorize(WarningColour)
-end
+#   Date,Gcount,Pcount,Ocount
+#   2020-02-14,1,4,3
+#   2020-02-16,1,2,4
+# Note that this is sparse: not every date in the range might be present
+# begin
+#   td_table = CSV.parse(File.read(INPUT_DIR + '/task_done_dates.csv'), headers: true, converters: :all)
+#   puts "Created #{td_table.inspect} from reading task_done_dates.csv into td_table"
+# rescue StandardError => e
+#   puts "ERROR: '#{e.exception.message}' when reading #{INPUT_DIR}/task_done_dates.csv".colorize(WarningColour)
+# end
 
 # ------------------------------------------------------------------------------------
 # Previous way to create charts -- directly in Gnuplot using a gem ...
 
 # Create chart to show difference between complete and open tasks over time
 # first create non-sparse table of data for last 180 days (approx 6 months)
-ord_date_6m_ago = (TODAYS_DATE << 6).strftime('%Y%j').to_i
-# puts ord_date_6m_ago
-done_goal_last6m = Array.new(180, 0)
-done_project_last6m = Array.new(180, 0)
-done_other_last6m = Array.new(180, 0)
-d = ord_date_6m_ago
-td_table.each do |tdt|
-  d = tdt[0]
-  next unless d > ord_date_6m_ago
+# date_6m_ago = (TODAYS_DATE << 6).strftime('%Y-%m-%d').to_i
+# puts date_6m_ago
+# done_goal_last6m = Array.new(180, 0)
+# done_project_last6m = Array.new(180, 0)
+# done_other_last6m = Array.new(180, 0)
+# d = date_6m_ago
+# td_table.each do |tdt|
+#   d = tdt[0]
+#   next unless d > date_6m_ago
 
-  done_goal_last6m[d - ord_date_6m_ago] = tdt[1]
-  done_project_last6m[d - ord_date_6m_ago] = tdt[2]
-  done_other_last6m[d - ord_date_6m_ago] = tdt[3]
-end
+#   done_goal_last6m[d - date_6m_ago] = tdt[1]
+#   done_project_last6m[d - date_6m_ago] = tdt[2]
+#   done_other_last6m[d - date_6m_ago] = tdt[3]
+# end
 # puts done_other_last6m, done_other_last6m.size
 
 # puts done_last6m.class
 # first_done_date = td_table.by_col['orddate'].min
 # last_done_date = td_table.by_col['orddate'].max
-# first_date_to_use = ord_date_6m_ago > first_done_date ? ord_date_6m_ago : first_done_date
+# first_date_to_use = date_6m_ago > first_done_date ? date_6m_ago : first_done_date
 # last_date_to_use = last_done_date
 # puts "Found date range #{first_done_date}..#{last_done_date}, and will use last 6 months (#{first_date_to_use}..#{last_date_to_use})" if $verbose
 # done_dates = add(td_table.by_col['orddate'], td_table.by_col['count'])
@@ -238,9 +240,85 @@ end
 
 # Alternatively use separate gnuplot definition file and call:
 # - https://stackoverflow.com/questions/2232/how-to-call-shell-commands-from-ruby
-gp_commands = 'done_tasks.gp'
+# gp_commands = 'done_tasks.gp'
+# gp_call_result = system("/usr/local/bin/gnuplot '#{gp_commands}'")
+# puts 'ERROR: Hit problem when creating Done Tasks graph using gnuplot'.colorize(WarningColour) unless gp_call_result
+
+# -----------------------------------------------------------------------------------
+# Do graphs of net tasks
+# -----------------------------------------------------------------------------------
+
+# Plot net number of tasks completed vs added over time,
+# differentiating goal/projects/other.
+# This might be possible in gnuplot, but its not straightforward, so instead will
+# pre-compute the data and send to a file. Structure:
+#   date, added G, added P, added O, done G, done P, done O, total net G, total net P, total net O
+# Added = all the task_stats categories for one day minus the previous day
+# Done = actual log of the number completed per day
+
+begin
+  stats_table = CSV.parse(File.read(INPUT_DIR + '/task_stats.csv'), headers: true, converters: :all)
+  puts "Read #{stats_table.size} items from task_stats.csv into stats_table (class #{stats_table.class})"
+rescue StandardError => e
+  puts "ERROR: '#{e.exception.message}' when reading #{INPUT_DIR}/task_stats.csv".colorize(WarningColour)
+end
+begin
+  done_table = CSV.parse(File.read(INPUT_DIR + '/task_done_dates.csv'), headers: true, converters: :all)
+  puts "Read #{done_table.size} items from task_done_dates.csv into done_table  (class #{done_table.class})"
+rescue StandardError => e
+  puts "ERROR: '#{e.exception.message}' when reading #{INPUT_DIR}/task_dane_dates.csv".colorize(WarningColour)
+end
+start_date = TODAYS_DATE - net_lookback_days
+
+# Create hash of added tasks (g/p/o) for each day
+addedh = Hash.new { Array.new(3, 0) }
+last_gt = last_pt = last_ot = 0
+stats_table.each do |st|
+  d = Date.strptime(st[0][0..10], "%d %b %Y") # ignore time portion of datetime string
+  next unless d >= start_date
+  addedh.store(d.to_s, [ st[4]+st[5]+st[6]+st[7]+st[8] - last_gt,
+                st[9]+st[10]+st[11]+st[12]+st[13] - last_pt,
+                st[14]+st[15]+st[16]+st[17]+st[18] - last_ot ] )
+  last_gt = st[4]+st[5]+st[6]+st[7]+st[8]
+  last_pt = st[9]+st[10]+st[11]+st[12]+st[13]
+  last_ot = st[14]+st[15]+st[16]+st[17]+st[18]
+end
+# print_table(addedh)
+# Create hash of done tasks (g/p/o) for each day
+doneh = Hash.new { Array.new(3, 0) }
+done_table.each do |dt|
+  d = dt[0]
+  next unless d >= start_date
+  doneh.store(d.to_s[0..9], [ dt[1], dt[2], dt[3] ] )
+end
+# print_table(doneh)
+# Create summary array to write out
+summarya = Array.new(net_lookback_days, 0)
+i = 0
+d = start_date + 1
+tag = tap = tao = 0
+while i < net_lookback_days
+  aa = addedh.fetch(d.to_s, [0,0,0]) # lookup from addedh, defaulting to 0
+  da = doneh.fetch(d.to_s, [0,0,0])  # lookup from doneh, defaulting to 0
+  tag += da[0] - aa[0] # running total of net G
+  tap += da[1] - aa[1] # running total of net P
+  tao += da[2] - aa[2] # running total of net O
+  summarya[i] = [d.to_s, aa[0], aa[1], aa[2], da[0], da[1], da[2], tag, tap, tao]
+  i += 1
+  d += 1
+end
+# Use the CSV library to help make this a bit easier
+puts "Writing #{i} lines to #{NET_FILENAME} ..."
+CSV.open(NET_FILENAME,"w") do |csv_file|
+  summarya.each do |sa|
+    row = sa
+    csv_file << row
+  end
+end
+
+gp_commands = 'net_tasks.gp'
 gp_call_result = system("/usr/local/bin/gnuplot '#{gp_commands}'")
-puts 'ERROR: Hit problem when creating graphs using gnuplot'.colorize(WarningColour) unless gp_call_result
+puts 'ERROR: Hit problem when creating Net Tasks graph using gnuplot'.colorize(WarningColour) unless gp_call_result
 
 # -----------------------------------------------------------------------------------
 # Do graphs of open tasks
