@@ -8,7 +8,7 @@
 # JGC, 26.9.2020
 
 DATAFILE="~/tasks_net.csv"
-todays_date=system("date +%d.%m.%Y")
+todays_date=system("date +'%e %b %Y'")
 
 # column stacked, and now summarised using week-long 'bins'
 reset # reset all things set by 'set' command, apart from term
@@ -18,7 +18,7 @@ set datafile separator comma
 set boxwidth 1.0 relative
 set style fill solid 1.0 border
 set border 3 # just bottom + left
-set key inside bottom center vertical box 
+set key inside bottom center vertical box font "Avenir,10" 
 set key maxrows 3 maxcols 3
 set key reverse enhanced
 set key Left # as in left-algined; different from 'left' placement
@@ -29,9 +29,9 @@ rows = int(STATS_records)+1
 date_range = (strptime("%Y-%m-%d",sprintf("%d",STATS_max)) - strptime("%Y-%m-%d", sprintf("%d",STATS_min)))/60/60/24
 bins_to_use = rows / 7
 # bins_to_use = 8 # 91 #date_range / 7
-set title sprintf("Net tasks completed vs added (%d weeks up to %s)", bins_to_use, todays_date) font "Avenir,12"
+set title sprintf("Net tasks completed vs added (%d weeks to %s)", bins_to_use, todays_date) font "Avenir,12"
 set xdata time
-set yrange [-150:100]
+set yrange [-150:150]
 set timefmt "%Y-%m-%d"
 set format x "%d %b %y"
 set xtics scale 1,0 out center nomirror 

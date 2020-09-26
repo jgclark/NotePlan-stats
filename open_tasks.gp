@@ -59,7 +59,7 @@ date=system("date +'%e %b %y'")
 
 
 # version 3: using auto-layout of stacked plots
-set term png size 600, 400 font "Avenir,9"
+set term png size 800, 400 font "Avenir,9"
 set datafile separator comma
 set border 15 lw 1 # all
 set key inside bottom right nobox
