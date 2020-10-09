@@ -2,12 +2,12 @@
 
 ## for npStats
 
-### v1.3.4, 25.8.2020
-- [Change] The summary file of how many tasks were completed on which ordinal date (unless --nofile option given) now differentiates between Goal/Project/Other.
+### v1.3.4, 23.9.2020
+- [Change] The summary file of how many tasks were completed on which ordinal date (unless --nofile option given) now differentiates between Goal/Project/Other. (continuing issue #9)
 
 ### v1.3.3, 23.8.2020
-- [New] Support data files with .md extensions as well as .txt (issue ?)
-- [New] Write out a summary of how many tasks were completed on which ordinal date (unless --nofile option given)
+- [New] Support data files with .md extensions as well as .txt (issue 8) -- not yet fully tested
+- [New] Write out a summary of how many tasks were completed on which ordinal date (unless --nofile option given) (issue #9)
 
 ### v1.3.2, 24.7.2020
 - [New] Make CloudKit the default file storage location
@@ -44,6 +44,8 @@
 Initial load into this GitHub project.
 
 ## for npTagStats
+### v1.4, 10.10.2020
+- [New] Add summary totals of @mention(n) per week (issue #10)
 
 ### v1.3.3, 16.8.2020
 - [New] npTagStats Sort both types out of @mention summary output (issue #6)
