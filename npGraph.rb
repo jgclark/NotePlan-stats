@@ -41,6 +41,7 @@
 # - v0.2.1, 23.8.2020 - add graph for number of tasks completed per day over last 6 months (using local gnuplot)
 # - v0.2, 11.7.2020 - produces graphs of number of open tasks over time for Goals/Projects/Other (using Google Charts API)
 VERSION = '0.3'.freeze
+# TODO: ideally only use latest line from CSV if there are multiples for that day
 
 require 'date'
 require 'time'
@@ -69,7 +70,7 @@ INPUT_DIR = if STORAGE_TYPE == 'iCloud'
               "/Users/#{USERNAME}" # for CloudKit use home directory
             end
 WORKING_DIR = '/Users/jonathan/GitHub/NotePlan-stats'.freeze
-NET_FILENAME = "#{INPUT_DIR}/tasks_net.csv"
+NET_FILENAME = "#{INPUT_DIR}/tasks_net.csv".freeze
 net_lookback_days = 56 # 8 weeks
 
 # Colours, using the colorization gem
@@ -274,14 +275,15 @@ start_date = TODAYS_DATE - net_lookback_days
 addedh = Hash.new { Array.new(3, 0) }
 last_gt = last_pt = last_ot = 0
 stats_table.each do |st|
-  d = Date.strptime(st[0][0..10], "%d %b %Y") # ignore time portion of datetime string
+  d = Date.strptime(st[0][0..10], '%d %b %Y') # ignore time portion of datetime string
   next unless d >= start_date
-  addedh.store(d.to_s, [ st[4]+st[5]+st[6]+st[7]+st[8] - last_gt,
-                st[9]+st[10]+st[11]+st[12]+st[13] - last_pt,
-                st[14]+st[15]+st[16]+st[17]+st[18] - last_ot ] )
-  last_gt = st[4]+st[5]+st[6]+st[7]+st[8]
-  last_pt = st[9]+st[10]+st[11]+st[12]+st[13]
-  last_ot = st[14]+st[15]+st[16]+st[17]+st[18]
+
+  addedh.store(d.to_s, [st[4] + st[5] + st[6] + st[7] + st[8] - last_gt,
+                        st[9] + st[10] + st[11] + st[12] + st[13] - last_pt,
+                        st[14] + st[15] + st[16] + st[17] + st[18] - last_ot])
+  last_gt = st[4] + st[5] + st[6] + st[7] + st[8]
+  last_pt = st[9] + st[10] + st[11] + st[12] + st[13]
+  last_ot = st[14] + st[15] + st[16] + st[17] + st[18]
 end
 # print_table(addedh)
 # Create hash of done tasks (g/p/o) for each day
@@ -289,7 +291,8 @@ doneh = Hash.new { Array.new(3, 0) }
 done_table.each do |dt|
   d = dt[0]
   next unless d >= start_date
-  doneh.store(d.to_s[0..9], [ dt[1], dt[2], dt[3] ] )
+
+  doneh.store(d.to_s[0..9], [dt[1], dt[2], dt[3]])
 end
 # print_table(doneh)
 # Create summary array to write out
@@ -298,8 +301,8 @@ i = 0
 d = start_date + 1
 tag = tap = tao = 0
 while i < net_lookback_days
-  aa = addedh.fetch(d.to_s, [0,0,0]) # lookup from addedh, defaulting to 0
-  da = doneh.fetch(d.to_s, [0,0,0])  # lookup from doneh, defaulting to 0
+  aa = addedh.fetch(d.to_s, [0, 0, 0]) # lookup from addedh, defaulting to 0
+  da = doneh.fetch(d.to_s, [0, 0, 0])  # lookup from doneh, defaulting to 0
   tag += da[0] - aa[0] # running total of net G
   tap += da[1] - aa[1] # running total of net P
   tao += da[2] - aa[2] # running total of net O
@@ -309,7 +312,7 @@ while i < net_lookback_days
 end
 # Use the CSV library to help make this a bit easier
 puts "Writing #{i} lines to #{NET_FILENAME} ..."
-CSV.open(NET_FILENAME,"w") do |csv_file|
+CSV.open(NET_FILENAME, 'w') do |csv_file|
   summarya.each do |sa|
     row = sa
     csv_file << row

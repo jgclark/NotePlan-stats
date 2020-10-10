@@ -6,6 +6,7 @@
 #   2020-09-22,0,1,0, 0,0,2, 0,0,3 etc.
 # uses Gnuplot 5.2, but would probaby work back to Gnuplot 4.8
 # JGC, 26.9.2020
+# TODO: If negative added tasks, then treat as zero
 
 DATAFILE="~/tasks_net.csv"
 todays_date=system("date +'%e %b %Y'")
@@ -31,7 +32,7 @@ bins_to_use = rows / 7
 # bins_to_use = 8 # 91 #date_range / 7
 set title sprintf("Net tasks completed vs added (%d weeks to %s)", bins_to_use, todays_date) font "Avenir,12"
 set xdata time
-set yrange [-150:150]
+set yrange [-100:*]
 set timefmt "%Y-%m-%d"
 set format x "%d %b %y"
 set xtics scale 1,0 out center nomirror 
