@@ -38,13 +38,13 @@ require 'optparse'
 STORAGE_TYPE = 'CloudKit'.freeze # or Dropbox or CloudKit or iCloud
 # Tags to count up.
 TAGS_TO_COUNT = ['#holiday', '#halfholiday', '#bankholiday', '#dayoff', '#sundayoff',
-                 '#friends', '#family', '#bbq', '#bookread',
+                 '#friends', '#family', '#bbq', '#bookread', '#gardened',
                  '#preach', '#wedding', '#funeral', '#baptism', '#dedication', '#thanksgiving',
-                 '#welcome', '#homevisit', '#conference', '#training', '#retreat', '#mentor', '#mentee',
+                 '#welcome', '#homevisit', '#conference', '#training', '#retreat', '#mentor', '#mentee', '#call', '#greek',
                  '#parkrun', '#dogwalk', '#dogrun', '#run',
                  '#leadaaw', '#leadmw', '#leadmp', '#leadhc', '#recordvideo', '#editvideo', '#article',
                  '#firekiln', '#glassmaking', '#tiptrip'].sort # simple array of strings
-MENTIONS_TO_COUNT = ['@work', '@sleep']
+MENTIONS_TO_COUNT = ['@work', '@sleep'].freeze
 DATE_FORMAT = '%d.%m.%y'.freeze
 DATE_TIME_FORMAT = '%e %b %Y %H:%M (week %V, day %j)'.freeze
 USERNAME = 'jonathan'.freeze
@@ -62,7 +62,7 @@ NP_BASE_DIR = if STORAGE_TYPE == 'Dropbox'
 NP_NOTE_DIR = "#{NP_BASE_DIR}/Notes".freeze
 NP_CALENDAR_DIR = "#{NP_BASE_DIR}/Calendar".freeze
 OUTPUT_DIR = if STORAGE_TYPE == 'CloudKit'
-               "/Users/#{USERNAME}" # save in user's home directory as it won't be sync'd in a CloudKit directory
+               "/Users/#{USERNAME}/Dropbox/NPSummaries" # save in user's home directory as it won't be sync'd in a CloudKit directory
              else
                "#{NP_BASE_DIR}/Summaries".freeze # but otherwise store in Summaries/ directory
              end
@@ -100,10 +100,10 @@ class NPCalendar
     yyyymmdd = @filename[0..7]
     @is_future = true if yyyymmdd > DATE_TODAY_YYYYMMDD
     puts "  Initialising #{@filename}".colorize(TotalColour) if $verbose
-    # save which week number this is (NB: 00-53 are apparently all possible), 
+    # save which week number this is (NB: 00-53 are apparently all possible),
     # based on weeks starting on first Monday of year (1), and before then 0
-    this_date = Date.strptime(@filename, "%Y%m%d")
-    @week_num = this_date.strftime("%W").to_i
+    this_date = Date.strptime(@filename, '%Y%m%d')
+    @week_num = this_date.strftime('%W').to_i
 
     # Open file and read in
     # NB: needs the encoding line when run from launchctl, otherwise you get US-ASCII invalid byte errors (basically the 'locale' settings are different)
@@ -157,7 +157,7 @@ $verbose = options[:verbose]
 time_now = Time.now
 time_now_fmt = time_now.strftime(DATE_TIME_FORMAT)
 this_year_str = time_now.strftime('%Y')
-this_week_num = time_now.strftime("%W").to_i
+this_week_num = time_now.strftime('%W').to_i
 n = 0 # number of notes/calendar entries to work on
 calFiles = [] # to hold all relevant calendar objects
 
@@ -202,7 +202,7 @@ if n.positive?
   # Helpful ruby hash summary: https://www.tutorialspoint.com/ruby/ruby_hashes.htm
   # Nested hash examples: http://www.korenlc.com/nested-arrays-hashes-loops-in-ruby/
   param_counts = Hash.new(0)
-  mention_week_totals = Array.new(53,0) { Array.new(2,0) }
+  mention_week_totals = Array.new(53, 0) { Array.new(2, 0) } # FIXME: this lines gives error 'block supersedes default value argument'
   mi = 0
   MENTIONS_TO_COUNT.each do |m|
     # create empty nested hashes for each @mention
@@ -253,7 +253,7 @@ if n.positive?
         pc = param_counts[m].fetch(pi, 0) # get current value, or if doesn't exist, default to 0
         puts "    new #{m}(#{p})   already seen #{pc}" if $verbose
         param_counts[m][pi] = pc + 1
-        puts "#{cal.week_num} #{mi} #{pi} = #{mention_week_totals[cal.week_num][mi]}"
+        # puts "#{cal.week_num} #{mi} #{pi} = #{mention_week_totals[cal.week_num][mi]}"
         mention_week_totals[cal.week_num][mi] += pi
       end
       mi += 1
@@ -266,114 +266,114 @@ if n.positive?
   #-----------------------------------------------------------------------
   # Write out to a file (replacing any existing one)
   # begin
-    if options[:write_file]
-      # TODO: Check whether Summaries directory exists. If not, create it.
-      filepath = OUTPUT_DIR + '/' + the_year_str + '_tag_stats.csv'
-      f = File.open(filepath, 'w')
-    end
+  if options[:write_file]
+    # TODO: Check whether Summaries directory exists. If not, create it.
+    filepath = OUTPUT_DIR + '/' + the_year_str + '_tag_stats.csv'
+    f = File.open(filepath, 'w')
+  end
 
-    # Write out the #hashtag counts
-    puts "Tag\t\tPast\tFuture\tfor #{the_year_str}".bold
-    f.puts "Tag,Past,Future,#{time_now_fmt}" if options[:write_file]
+  # Write out the #hashtag counts
+  puts "Tag\t\tPast\tFuture\tfor #{the_year_str}".bold
+  f.puts "Tag,Past,Future,#{time_now_fmt}" if options[:write_file]
 
-    # Write out the #tag counts list
+  # Write out the #tag counts list
+  i = 0
+  TAGS_TO_COUNT.each do |t|
+    printf("%-15s\t%3d\t%3d\n", t, tag_counts[i], tag_counts_future[i])
+    f.printf("%s,%d,%d\n", t, tag_counts[i], tag_counts_future[i]) if options[:write_file]
+    i += 1
+  end
+  df = printf("  (Days found  \t%3d\t%3d)\n", days, futureDays)
+  puts df.to_s.bold
+  f.printf("Days found,%d,%d\n", days, futureDays) if options[:write_file]
+
+  # Write out the @mention counts
+  # Involves taking each main part of the hash and converting to an array to sort it
+  # items need to be integer, to sort properly here (see pi earlier)
+  MENTIONS_TO_COUNT.each do |m|
+    ma = param_counts[m].sort
+    next if ma.empty?
+
+    m_key_screen = '  Param:'
+    m_key_file = 'Param'
+    m_value_screen = '  Count:'
+    m_value_file = 'Count'
+    # m_sum_screen = '  Total:'
+    # m_sum_file = 'Total'
     i = 0
-    TAGS_TO_COUNT.each do |t|
-      printf("%-15s\t%3d\t%3d\n", t, tag_counts[i], tag_counts_future[i])
-      f.printf("%s,%d,%d\n", t, tag_counts[i], tag_counts_future[i]) if options[:write_file]
+    while i < ma.size
+      mak = ma[i][0]
+      mav = ma[i][1]
+      m_key_screen += "\t#{mak}"
+      m_value_screen += "\t#{mav}"
+      m_key_file += ",#{mak}"
+      m_value_file += ",#{mav}"
       i += 1
-    end
-    df = printf("  (Days found  \t%3d\t%3d)\n", days, futureDays)
-    puts "#{df}".bold
-    f.printf("Days found,%d,%d\n", days, futureDays) if options[:write_file]
-
-    # Write out the @mention counts
-    # Involves taking each main part of the hash and converting to an array to sort it
-    # items need to be integer, to sort properly here (see pi earlier)
-    MENTIONS_TO_COUNT.each do |m|
-      ma = param_counts[m].sort
-      next if ma.empty?
-
-      m_key_screen = '  Param:'
-      m_key_file = 'Param'
-      m_value_screen = '  Count:'
-      m_value_file = 'Count'
-      # m_sum_screen = '  Total:'
-      # m_sum_file = 'Total'
-      i = 0
-      while i < ma.size
-        mak = ma[i][0]
-        mav = ma[i][1]
-        m_key_screen += "\t#{mak}"
-        m_value_screen += "\t#{mav}"
-        m_key_file += ",#{mak}"
-        m_value_file += ",#{mav}"
-        i += 1
-        # Calculate the sum of this k*v
-        # m_sum = mak * mav
-        # m_sum_screen += "\t#{m_sum}"
-        # m_sum_file += ",#{m_sum}"
-      end
-
-      # Write output to screen
-      puts "\n#{m} mentions for #{the_year_str}".colorize(TotalColour)
-      puts m_key_screen
-      puts m_value_screen
-      # puts m_sum_screen
-
-      # Write output to file
-      next unless options[:write_file]
-
-      f.puts "\n#{m} mentions for #{the_year_str}"
-      f.puts m_key_file
-      f.puts m_value_file
-      # f.puts m_sum_file
+      # Calculate the sum of this k*v
+      # m_sum = mak * mav
+      # m_sum_screen += "\t#{m_sum}"
+      # m_sum_file += ",#{m_sum}"
     end
 
-    # Calc and write out @mention totals
-    m_head_screen = "\nWeek #"
-    m_head_file = "\nWeek #"
-    m_sum = Array.new(MENTIONS_TO_COUNT.count,0)
-    m_sum_screen = 'Total:'
-    m_sum_file = 'Total'
+    # Write output to screen
+    puts "\n#{m} mentions for #{the_year_str}".colorize(TotalColour)
+    puts m_key_screen
+    puts m_value_screen
+    # puts m_sum_screen
+
+    # Write output to file
+    next unless options[:write_file]
+
+    f.puts "\n#{m} mentions for #{the_year_str}"
+    f.puts m_key_file
+    f.puts m_value_file
+    # f.puts m_sum_file
+  end
+
+  # Calc and write out @mention totals
+  m_head_screen = "\nWeek #"
+  m_head_file = "\nWeek #"
+  m_sum = Array.new(MENTIONS_TO_COUNT.count, 0)
+  m_sum_screen = 'Total:'
+  m_sum_file = 'Total'
+  mi = 0
+  while mi < MENTIONS_TO_COUNT.count
+    m_head_file += "\t#{MENTIONS_TO_COUNT[mi]}"
+    m_head_screen += ",#{MENTIONS_TO_COUNT[mi]}"
+    mi += 1
+  end
+  puts m_head_file
+  f.puts m_head_screen if options[:write_file]
+  w = 0
+  while w < this_week_num
+    outs = w.to_s
+    outf = w.to_s
     mi = 0
+    mc = 0
     while mi < MENTIONS_TO_COUNT.count
-      m_head_file += "\t#{MENTIONS_TO_COUNT[mi]}"
-      m_head_screen += ",#{MENTIONS_TO_COUNT[mi]}"
+      mwt = mention_week_totals[w][mi]
+      m_sum[mi] += mwt # sum how many items for this mention
+      mc += mwt # sum how many items reported this week
+      outs += "\t#{mwt}"
+      outf += ",#{mwt}"
       mi += 1
     end
-    puts m_head_file
-    f.puts m_head_screen if options[:write_file]
-    w = 0
-    while w < this_week_num
-      outs = "#{w}"
-      outf = "#{w}"
-      mi = 0
-      mc = 0
-      while mi < MENTIONS_TO_COUNT.count
-        mwt = mention_week_totals[w][mi]
-        m_sum[mi] += mwt # sum how many items for this mention
-        mc += mwt # sum how many items reported this week
-        outs += "\t#{mwt}"
-        outf += ",#{mwt}"
-        mi += 1
-      end
-      # write this week's totals, but only if there if any are non-zero
-      if (mc>0) 
-        puts outs
-        f.puts outf if options[:write_file] # also write output to file
-      end
-      w += 1
+    # write this week's totals, but only if there if any are non-zero
+    if mc > 0
+      puts outs
+      f.puts outf if options[:write_file] # also write output to file
     end
-    mi = 0
-    while mi < MENTIONS_TO_COUNT.count
-      m_sum_screen += "\t#{m_sum[mi]}"
-      m_sum_file += ",#{m_sum[mi]}"
-      mi += 1
-    end
-    puts "#{m_sum_screen}".bold
-    f.puts m_sum_file if options[:write_file] # also write output to file
-    f.close if options[:write_file]
+    w += 1
+  end
+  mi = 0
+  while mi < MENTIONS_TO_COUNT.count
+    m_sum_screen += "\t#{m_sum[mi]}"
+    m_sum_file += ",#{m_sum[mi]}"
+    mi += 1
+  end
+  puts m_sum_screen.to_s.bold
+  f.puts m_sum_file if options[:write_file] # also write output to file
+  f.close if options[:write_file]
 
   # rescue StandardError => e
   #   puts "ERROR: Hit #{e.exception.message} when writing out summary to screen or #{filepath}".colorize(WarningColour)
