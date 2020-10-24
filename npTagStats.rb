@@ -1,7 +1,7 @@
 #!/usr/bin/ruby
 #-------------------------------------------------------------------------------
 # NotePlan Tag Stats Summariser
-# Jonathan Clark, v1.4, 10.10.2020
+# Jonathan Clark, v1.4.1, 11.10.2020
 #-------------------------------------------------------------------------------
 # Script to give stats on various tags in NotePlan's daily calendar files.
 #
@@ -24,9 +24,7 @@
 # For more information, including installation, please see the GitHub repository:
 #   https://github.com/jgclark/NotePlan-stats/
 #-------------------------------------------------------------------------------
-VERSION = '1.4'.freeze
-# TODO: do weekly summary of MENTIONS_TO_COUNT
-# - and the week commencing date too
+VERSION = '1.4.1'.freeze
 
 require 'date'
 require 'time'
@@ -38,7 +36,7 @@ require 'optparse'
 STORAGE_TYPE = 'CloudKit'.freeze # or Dropbox or CloudKit or iCloud
 # Tags to count up.
 TAGS_TO_COUNT = ['#holiday', '#halfholiday', '#bankholiday', '#dayoff', '#sundayoff',
-                 '#friends', '#family', '#bbq', '#bookread', '#gardened',
+                 '#friends', '#family', '#bbq', '#bookread', '#gardened', '#nap',
                  '#preach', '#wedding', '#funeral', '#baptism', '#dedication', '#thanksgiving',
                  '#welcome', '#homevisit', '#conference', '#training', '#retreat', '#mentor', '#mentee', '#call', '#greek',
                  '#parkrun', '#dogwalk', '#dogrun', '#run',
@@ -163,10 +161,10 @@ calFiles = [] # to hold all relevant calendar objects
 
 # Work out which year's calendar files to be summarising
 the_year_str = ARGV[0] || this_year_str
-print "Creating stats at #{time_now_fmt} for #{the_year_str} ..."
+print "Creating stats at #{time_now_fmt} for #{the_year_str}"
 begin
   Dir.chdir(NP_CALENDAR_DIR)
-  Dir.glob("#{the_year_str}*.txt").each do |this_file|
+    Dir.glob(["#{the_year_str}*.txt", "#{the_year_str}*.md"]).each do |this_file|
     # ignore this file if the directory starts with '@'
     # fsize = File.size?(this_file) || 0
     # puts "#{this_file} size #{fsize}" if $verbose
@@ -177,7 +175,7 @@ begin
     calFiles[n] = NPCalendar.new(this_file, n)
     n += 1
   end
-  print " ... analysed #{n} found notes.\n"
+  print " ... analysed #{n} found notes.\n\n"
 rescue StandardError => e
   puts "ERROR: Hit #{e.exception.message} when reading calendar files.".colorize(WarningColour)
   exit
@@ -202,7 +200,7 @@ if n.positive?
   # Helpful ruby hash summary: https://www.tutorialspoint.com/ruby/ruby_hashes.htm
   # Nested hash examples: http://www.korenlc.com/nested-arrays-hashes-loops-in-ruby/
   param_counts = Hash.new(0)
-  mention_week_totals = Array.new(53, 0) { Array.new(2, 0) } # FIXME: this lines gives error 'block supersedes default value argument'
+  mention_week_totals = Array.new(53) { Array.new(2,0) }
   mi = 0
   MENTIONS_TO_COUNT.each do |m|
     # create empty nested hashes for each @mention
@@ -273,7 +271,7 @@ if n.positive?
   end
 
   # Write out the #hashtag counts
-  puts "Tag\t\tPast\tFuture\tfor #{the_year_str}".bold
+  puts "Tag\t\tPast\tFuture\tfor #{the_year_str}".colorize(TotalColour)
   f.puts "Tag,Past,Future,#{time_now_fmt}" if options[:write_file]
 
   # Write out the #tag counts list
@@ -330,50 +328,53 @@ if n.positive?
     # f.puts m_sum_file
   end
 
-  # Calc and write out @mention totals
-  m_head_screen = "\nWeek #"
-  m_head_file = "\nWeek #"
-  m_sum = Array.new(MENTIONS_TO_COUNT.count, 0)
-  m_sum_screen = 'Total:'
-  m_sum_file = 'Total'
-  mi = 0
-  while mi < MENTIONS_TO_COUNT.count
-    m_head_file += "\t#{MENTIONS_TO_COUNT[mi]}"
-    m_head_screen += ",#{MENTIONS_TO_COUNT[mi]}"
-    mi += 1
-  end
-  puts m_head_file
-  f.puts m_head_screen if options[:write_file]
-  w = 0
-  while w < this_week_num
-    outs = w.to_s
-    outf = w.to_s
+    # Calc and write out @mention totals
+    m_head_screen = "\nWeek #\tW/C"
+    m_head_file = "\nWeek #,W/C"
+    m_sum = Array.new(MENTIONS_TO_COUNT.count,0)
+    m_sum_screen = "\tTotal:"
+    m_sum_file = ',Total'
     mi = 0
     mc = 0
     while mi < MENTIONS_TO_COUNT.count
-      mwt = mention_week_totals[w][mi]
-      m_sum[mi] += mwt # sum how many items for this mention
-      mc += mwt # sum how many items reported this week
-      outs += "\t#{mwt}"
-      outf += ",#{mwt}"
+      m_head_screen += "\t#{MENTIONS_TO_COUNT[mi]}"
+      m_head_file += ",#{MENTIONS_TO_COUNT[mi]}"
       mi += 1
     end
-    # write this week's totals, but only if there if any are non-zero
-    if mc > 0
-      puts outs
-      f.puts outf if options[:write_file] # also write output to file
+    puts m_head_screen.colorize(TotalColour)
+    f.puts m_head_file if options[:write_file]
+    w = 1 # start from week 1, as otherwise week commencing won't work
+    while w < this_week_num
+      wp = "#{this_year_str} #{w.to_s}"
+      wc = Date.strptime(wp, "%Y %W").strftime("%-d/%-m") # week commencing
+      outs = "#{w}\t#{wc}"
+      outf = "#{w},#{wc}"
+      mi = 0
+      mc = 0
+      while mi < MENTIONS_TO_COUNT.count
+        mwt = mention_week_totals[w][mi]
+        m_sum[mi] += mwt # sum how many items for this mention
+        mc += mwt # sum how many items reported this week
+        outs += "\t#{mwt}"
+        outf += ",#{mwt}"
+        mi += 1
+      end
+      # write this week's totals, but only if there if any are non-zero
+      if (mc>0) 
+        puts outs
+        f.puts outf if options[:write_file] # also write output to file
+      end
+      w += 1
     end
-    w += 1
-  end
-  mi = 0
-  while mi < MENTIONS_TO_COUNT.count
-    m_sum_screen += "\t#{m_sum[mi]}"
-    m_sum_file += ",#{m_sum[mi]}"
-    mi += 1
-  end
-  puts m_sum_screen.to_s.bold
-  f.puts m_sum_file if options[:write_file] # also write output to file
-  f.close if options[:write_file]
+    mi = 0
+    while mi < MENTIONS_TO_COUNT.count
+      m_sum_screen += "\t#{m_sum[mi]}"
+      m_sum_file += ",#{m_sum[mi]}"
+      mi += 1
+    end
+    puts "#{m_sum_screen}".colorize(TotalColour)
+    f.puts m_sum_file if options[:write_file] # also write output to file
+    f.close if options[:write_file]
 
   # rescue StandardError => e
   #   puts "ERROR: Hit #{e.exception.message} when writing out summary to screen or #{filepath}".colorize(WarningColour)
