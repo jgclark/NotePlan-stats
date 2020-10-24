@@ -1,6 +1,9 @@
 # CHANGELOG
 
 ## for npStats
+### v1.4.0, 24.10.2020
+- [Change] The counts now ignore open or future tasks in a #template section (issue #12)
+- [New] New -c option to ignore daily calendar files when counting the stats
 
 ### v1.3.4, 23.9.2020
 - [Change] The summary file of how many tasks were completed on which ordinal date (unless --nofile option given) now differentiates between Goal/Project/Other. (continuing issue #9)

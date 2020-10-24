@@ -1,7 +1,7 @@
 #!/usr/bin/ruby
 #-------------------------------------------------------------------------------
 # NotePlan Task Stats Summariser
-# (c) JGC, v1.3.4, 23.9.2020
+# (c) JGC, v1.4.0, 24.10.2020
 #-------------------------------------------------------------------------------
 # Script to give stats on various tags in NotePlan's Notes and Daily files.
 #
@@ -9,6 +9,7 @@
 # - only covers active notes (not archived or cancelled)
 # - counts open tasks, open undated tasks, done tasks, future tasks
 # - breaks down by Goals/Projects/Other
+# - ignores tasks in a #template section
 # It writes output to screen and to a CSV file
 #
 # Configuration:
@@ -19,7 +20,7 @@
 # For more information please see the GitHub repository:
 #   https://github.com/jgclark/NotePlan-stats/
 #-------------------------------------------------------------------------------
-VERSION = '1.3.4'.freeze
+VERSION = '1.4.0'.freeze
 
 require 'date'
 require 'time'
@@ -46,11 +47,10 @@ NP_BASE_DIR = if STORAGE_TYPE == 'Dropbox'
 NP_CALENDAR_DIR = "#{NP_BASE_DIR}/Calendar".freeze
 NP_NOTE_DIR = "#{NP_BASE_DIR}/Notes".freeze
 OUTPUT_DIR = if STORAGE_TYPE == 'CloudKit'
-               "/Users/#{USERNAME}" # save in user's home directory as it won't be sync'd in a CloudKit directory
+               "/Users/#{USERNAME}/Dropbox/NPSummaries" # save in user's home Dropbox directory as it won't be sync'd in a CloudKit directory
              else
                "#{NP_BASE_DIR}/Summaries".freeze # but otherwise store in Summaries/ directory
              end
-puts "(Working dir: #{OUTPUT_DIR})"
 
 # Other variables that need to be global
 $cal_done_dates = Hash.new(0) # Hash of dates, with new items defaulting to zero
@@ -148,6 +148,8 @@ class NPCalendar
         end
       end
     end
+  rescue EOFError
+    # this file has less than two lines, but we can ignore the problem for the stats
   rescue StandardError => e
     puts "ERROR: Hit #{e.exception.message} when initialising #{@filename} in NPCalendar".colorize(WarningColour)
   end
@@ -179,9 +181,10 @@ class NPNote
     @id = id
     @title = nil
     @is_active = true # assume note is active
+    @is_completed = false
     @is_cancelled = false
     @open = @waiting = @done = @future = @undated = 0
-    @dueDate = nil
+    @completed_date = nil
     @is_project = false
     @is_goal = false
     @done_dates = Hash.new(0) # Hash of dates for this note, with new items defaulting to zero
@@ -195,21 +198,36 @@ class NPNote
       headerLine = f.readline
       @metadata_line = f.readline
 
-      # make note active if #active flag set
-      @is_active = true    if @metadata_line =~ /#active/
-      # but override if #archive set, or complete date set
-      @is_active = false   if (@metadata_line =~ /#archive/) || @completeDate
-      # make note cancelled if #cancelled or #someday flag set
-      @is_cancelled = true  if (@metadata_line =~ /#cancelled/) || (@metadata_line =~ /#someday/)
+      # Now process line 2 (rest of metadata)
+      # the following regex matches returns an array with one item, so make a string (by join), and then parse as a date
+      @metadata_line.scan(%r{(@completed|@finished)\(([0-9\-\./]{6,10})\)}) { |m| @completed_date = Date.parse(m.join) }
+
+      # make completed if @completed_date set
+      @is_completed = true unless @completed_date.nil?
+      # make cancelled if #cancelled or #someday flag set
+      @is_cancelled = true if @metadata_line =~ /(#cancelled|#someday)/
+      # set note to non-active if #archive is set, or cancelled, completed.
+      @is_active = false if @metadata_line == /#archive/ || @is_completed || @is_cancelled
 
       # Note if this is a #project or #goal
       @is_project = true if @metadata_line =~ /#project/
       @is_goal    = true if @metadata_line =~ /#goal/
 
       # Now read through rest of file, counting number of open, waiting, done tasks etc.
+      template_section_header_level = 0 # default to not in a template section
       f.each_line do |line|
+        line_header_level = 0
+        line.scan(/^(#+)\s/) { |m| line_header_level = m[0].length }
+        if line_header_level > 0
+          # is this a same- or higher-level header? If so take us out of a #template section
+          template_section_header_level = 0 if (line_header_level > 0) && (line_header_level <= template_section_header_level)
+          # see if this line takes us into a #template section
+          template_section_header_level = line_header_level if line =~ /#template/
+        end
+        # puts "#{template_section_header_level}/#{line_header_level}: #{line.chomp}" if $verbose
         if line =~ /\[x\]/
-          @done += 1 # count this as a completed task
+          # a completed task (using [x] format)
+          @done += 1
           # For each done task, make a note of the done date in the $done_dates array
           # (But sometimes done date is missing; if so, have to ignore.)
           line_scan = line.scan(/@done\((\d{4}\-\d{2}\-\d{2})/).join('')
@@ -222,24 +240,29 @@ class NPNote
             @done_dates[c_d_ordinal] += 1
           end
         elsif line =~ /^\s*\*\s+/ && line !~ /\[\-\]/ # a task, but not cancelled (or by implication not completed)
-          if line =~ /#waiting/
-            @waiting += 1 # count this as waiting not open
-          else
-            scheduledDate = nil
-            line.scan(/>(\d\d\d\d\-\d\d-\d\d)/) { |m| scheduledDate = Date.parse(m.join) }
-            if !scheduledDate.nil?
-              if scheduledDate > TODAYS_DATE
-                @future += 1 # count this as future
-              else
-                @open += 1 # count this as dated open (overdue)
-              end
+          unless template_section_header_level > 0
+            # we're not in a #template so continue processing
+            if line =~ /#waiting/
+              @waiting += 1 # count this as waiting not open
             else
-              @undated += 1 # count this as undated open
+              scheduledDate = nil
+              line.scan(/>(\d\d\d\d\-\d\d-\d\d)/) { |m| scheduledDate = Date.parse(m.join) }
+              if !scheduledDate.nil?
+                if scheduledDate > TODAYS_DATE
+                  @future += 1 # count this as future
+                else
+                  @open += 1 # count this as dated open (overdue)
+                end
+              else
+                @undated += 1 # count this as undated open
+              end
             end
           end
         end
       end
     end
+  rescue EOFError
+    # this file has less than two lines, but we can ignore the problem for the stats
   rescue StandardError => e
     puts "ERROR: Hit #{e.exception.message} when initialising #{@filename} in NPNote".colorize(WarningColour)
   end
@@ -252,19 +275,23 @@ end
 # Setup program options
 options = {}
 opt_parser = OptionParser.new do |opts|
-  opts.banner = 'Usage: npStats.rb [options]'
+  opts.banner = "NotePlan stats generator v #{VERSION}\nDetails at https://github.com/jgclark/NotePlan-stats/\nUsage: npStats.rb [options]"
   opts.separator ''
-  # options[:verbose] = 0
-  # options[:no_file] = 0
-  opts.on('-v', '--verbose', 'Show information as I work') do
-    options[:verbose] = 1
-  end
-  opts.on('-n', '--nofile', 'Do not write summary to file') do
-    options[:no_file] = 1
+  options[:verbose] = false
+  options[:no_file] = false
+  options[:no_calendar] = false
+  opts.on('-c', '--nocal', 'Do not count daily calendar notes') do
+    options[:no_calendar] = true
   end
   opts.on('-h', '--help', 'Show help') do
     puts opts
     exit
+  end
+  opts.on('-n', '--nofile', 'Do not write summary to file') do
+    options[:no_file] = true
+  end
+  opts.on('-v', '--verbose', 'Show information as I work') do
+    options[:verbose] = true
   end
 end
 opt_parser.parse! # parse out options, leaving file patterns to process
@@ -273,7 +300,12 @@ $verbose = options[:verbose]
 # Log time
 time_now = Time.now
 time_now_format = time_now.strftime(DATE_TIME_FORMAT)
-puts "Creating stats at #{time_now_format}:"
+if options[:no_calendar]
+  puts "Creating stats at #{time_now_format} (ignoring daily calendar files):"
+else
+  puts "Creating stats at #{time_now_format}:"
+end
+puts "  Writing output files to #{OUTPUT_DIR}/" unless options[:no_calendar]
 
 #=======================================================================================
 # Note stats
@@ -295,7 +327,7 @@ begin
     next if File.zero?(this_file)
 
     notes[i] = NPNote.new(this_file, i)
-    if notes[i].is_active && !notes[i].is_cancelled
+    if notes[i].is_active
       activeNotes.push(notes[i].id)
       i += 1
     end
@@ -404,37 +436,39 @@ done_dates = dds
 #===============================================================================
 calFiles = [] # to hold all relevant calendar objects
 
-# Read metadata for all note files in the NotePlan directory
-# (and sub-directories from v2.5, ignoring special ones starting '@')
-n = 0 # number of calendar entries to work on
-begin
-  Dir.chdir(NP_CALENDAR_DIR)
-  Dir.glob(['**/*.txt', '**/*.md']).each do |this_file|
-    # ignore this file if the directory starts with '@'
-    next unless this_file =~ /^[^@]/ # as can't get file glob including [^@] to work
-    # ignore this file if it's empty
-    next if File.zero?(this_file)
+unless options[:no_calendar]
+  # Read metadata for all note files in the NotePlan directory
+  # (and sub-directories from v2.5, ignoring special ones starting '@')
+  n = 0 # number of calendar entries to work on
+  begin
+    Dir.chdir(NP_CALENDAR_DIR)
+    Dir.glob(['**/*.txt', '**/*.md']).each do |this_file|
+      # ignore this file if the directory starts with '@'
+      next unless this_file =~ /^[^@]/ # as can't get file glob including [^@] to work
+      # ignore this file if it's empty
+      next if File.zero?(this_file)
 
-    calFiles[n] = NPCalendar.new(this_file, n)
-    n += 1
+      calFiles[n] = NPCalendar.new(this_file, n)
+      n += 1
+    end
+  rescue StandardError => e
+    puts "ERROR: Hit #{e.exception.message} when reading calendar directory".colorize(WarningColour)
   end
-rescue StandardError => e
-  puts "ERROR: Hit #{e.exception.message} when reading calendar directory".colorize(WarningColour)
-end
 
-if n.positive? # if we have some notes to work on ...
-  calFiles.each do |cal|
-    # count tasks
-    tod += cal.done
-    too += cal.open
-    tou += cal.undated
-    tow += cal.waiting
-    tof += cal.future
+  if n.positive? # if we have some notes to work on ...
+    calFiles.each do |cal|
+      # count tasks
+      tod += cal.done
+      too += cal.open
+      tou += cal.undated
+      tow += cal.waiting
+      tof += cal.future
+    end
+  else
+    puts "Warning: No matching calendar files found.\n".colorize(WarningColour)
   end
-else
-  puts "Warning: No matching calendar files found.\n".colorize(WarningColour)
+  puts
 end
-puts
 
 # Sum all the counts from Notes and Daily files
 tn = ton + tpn + tgn
@@ -453,7 +487,7 @@ puts "Other\t#{ton}\t#{tod}\t#{too}\t#{tou}\t#{tow}\t#{tof}"
 puts "TOTAL\t#{tn}\t#{td}\t#{to}\t#{tu}\t#{tw}\t#{tf}".colorize(TotalColour)
 
 # Append results to CSV files (unless --nofile option given)
-return unless options[:no_file].nil?
+return if options[:no_file]
 
 begin
   output = format('%s,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d',
@@ -462,7 +496,6 @@ begin
                   tpd, tpo, tpu, tpw, tpf,
                   tod, too, tou, tow, tof,
                   td, to, tu, tw, tf)
-  # TODO: Check whether Summaries directory exists. If not, create it.
   filepath = OUTPUT_DIR + '/task_stats.csv'
   f = File.open(filepath, 'a') # append
   f.puts output
