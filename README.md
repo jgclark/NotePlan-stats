@@ -11,7 +11,8 @@ It copes with notes in sub-directories (supported from NotePlan v2.4), though it
 It finds and summarises todos/tasks in note and calendar files:
 - it only covers active notes (not archived or cancelled)
 - it counts open tasks, open undated tasks, done tasks, future tasks
-- it also breaks them down by Goals/Projects/Other (For more on this particular way of using NotePlan see documentation for a different NotePlan extension, [NotePlan Reviewer]((https://github.com/jgclark/NotePlan-review).)
+- it also breaks them down by Goals/Projects/Other. (For more on this particular way of using NotePlan see documentation for a different NotePlan extension, [NotePlan Reviewer]((https://github.com/jgclark/NotePlan-review).)
+- it ignores tasks in a #template section. (For more on this particular way of using NotePlan see documentation for a different NotePlan extension, [NotePlan Tools]((https://github.com/jgclark/NotePlan-tools).)
 
 It writes output to screen and appends to a `task_stats.csv` file in the (new) top-level 'Summaries' directory (unless the --nofile option is given). If the storage type is `CloudKit` it will instead save to the user's home directory.
 

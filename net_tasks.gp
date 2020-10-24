@@ -8,7 +8,7 @@
 # JGC, 26.9.2020
 # TODO: If negative added tasks, then treat as zero
 
-DATAFILE="~/tasks_net.csv"
+DATAFILE="/Users/jonathan/Dropbox/NPSummaries/tasks_net.csv"
 todays_date=system("date +'%e %b %Y'")
 
 # column stacked, and now summarised using week-long 'bins'
@@ -40,7 +40,7 @@ set ytics scale 1,0 out nomirror
 set xzeroaxis
 show xzeroaxis
 # do main plot, summing together first 2 types to make it look like proper stacked
-set output "net_tasks.png"
+set output "/Users/jonathan/Dropbox/NPSummaries/net_tasks.png"
 plot DATAFILE using 1:($5+$6+$7) bins=bins_to_use with boxes lc "#40ee40" title "Completed Other tasks",\
  "" using 1:($5+$6) bins=bins_to_use with boxes lc "#4d4df0" title "Completed Project tasks",\
  "" using 1:($5) bins=bins_to_use with boxes lc "#f04040" title "Completed Goal tasks",\

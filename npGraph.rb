@@ -67,7 +67,7 @@ INPUT_DIR = if STORAGE_TYPE == 'iCloud'
             elsif STORAGE_TYPE == 'Dropbox'
               "/Users/#{USERNAME}/Dropbox/Apps/NotePlan/Documents/Summaries" # for Dropbox storage
             else
-              "/Users/#{USERNAME}" # for CloudKit use home directory
+              "/Users/#{USERNAME}/Dropbox/NPSummaries" # for CloudKit use a Dropbox directory
             end
 WORKING_DIR = '/Users/jonathan/GitHub/NotePlan-stats'.freeze
 NET_FILENAME = "#{INPUT_DIR}/tasks_net.csv".freeze
@@ -267,7 +267,7 @@ begin
   done_table = CSV.parse(File.read(INPUT_DIR + '/task_done_dates.csv'), headers: true, converters: :all)
   puts "Read #{done_table.size} items from task_done_dates.csv into done_table  (class #{done_table.class})"
 rescue StandardError => e
-  puts "ERROR: '#{e.exception.message}' when reading #{INPUT_DIR}/task_dane_dates.csv".colorize(WarningColour)
+  puts "ERROR: '#{e.exception.message}' when reading #{INPUT_DIR}/task_done_dates.csv".colorize(WarningColour)
 end
 start_date = TODAYS_DATE - net_lookback_days
 
@@ -310,7 +310,7 @@ while i < net_lookback_days
   i += 1
   d += 1
 end
-# Use the CSV library to help make this a bit easier
+# Use the CSV library to help make this (a bit) easier
 puts "Writing #{i} lines to #{NET_FILENAME} ..."
 CSV.open(NET_FILENAME, 'w') do |csv_file|
   summarya.each do |sa|
