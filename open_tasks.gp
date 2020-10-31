@@ -81,12 +81,13 @@ set yrange [0:*]  # automatic
 set ytics out nomirror font ",8"
 # set y2tics out nomirror font ",8" # turned this off as it's just %
 set notitle
-set style line 1 lw 2 lc rgb "red"
-set style line 2 lw 1 lc rgb "light-red" dashtype "- " # FIXME: not dashed (see manual p.42)
-set style line 3 lw 2 lc rgb "blue"
+set style line 1 lw 3 lc rgb "red"
+set style line 2 lw 1 lc rgb "light-red"
+set style line 3 lw 3 lc rgb "blue"
 set style line 4 lw 1 lc rgb "light-blue"
-set style line 5 lw 2 lc rgb "green"
+set style line 5 lw 3 lc rgb "green"
 set style line 6 lw 1 lc rgb "light-green"
+set style line 7 lw 1 lc rgb "gray" dashtype "--   " # TODO: make dashed (see manual p.42)
 set tmargin 1
 set bmargin 0
 set lmargin 6
@@ -95,13 +96,15 @@ set output "/Users/jonathan/Dropbox/NPSummaries/open-tasks.png"
 set multiplot layout 3,1 downwards \
   title sprintf("Open tasks in NotePlan (at %s)", date) font ",11"
 set y2range [0:100]
-plot FILENAME using 1:($6+$7+$8) with lines ls 1 axes x1y1 title 'Goal tasks open', \
+plot FILENAME using 1:($6+$7+$8) with lines ls 1 axes x1y1 title '# Goal tasks open', \
+  "" using 1:2 with lines ls 7 axes x1y1 title '# Goals open', \
   "" using 1:(($5)/($5+$6+$7+$8)*100) with lines ls 2 axes x1y2 title '% tasks complete'
 set tmargin 0
-plot FILENAME using 1:($11+$12+$13) with lines ls 3 axes x1y1 title 'Project tasks open', \
+plot FILENAME using 1:($11+$12+$13) with lines ls 3 axes x1y1 title '# Project tasks open', \
+  "" using 1:3 with lines ls 7 axes x1y1 title '# Projects open', \
   "" using 1:(($10)/($10+$11+$12+$13)*100) with lines ls 4 axes x1y2 title '% tasks complete'
 set bmargin 2
 set xtics out nomirror font ",8"
-plot FILENAME using 1:($16+$17+$18) with lines ls 5 axes x1y1 title 'Other tasks open', \
+plot FILENAME using 1:($16+$17+$18) with lines ls 5 axes x1y1 title '# Other tasks open', \
   "" using 1:(($15)/($15+$16+$17+$18)*100) with lines ls 6 axes x1y2 title '% tasks complete'
 unset multiplot

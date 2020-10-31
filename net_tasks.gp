@@ -4,9 +4,9 @@
 #   Date,Added Goals,Added Projects,Added Others, Done Goals, Done Projects, Done Others, total net G, total net P, total net O
 #   2020-09-20,0,2,0, 0,3,1, 0,1,1
 #   2020-09-22,0,1,0, 0,0,2, 0,0,3 etc.
+# If the added figures are negative (it happens) then treat as zero.
 # uses Gnuplot 5.2, but would probaby work back to Gnuplot 4.8
-# JGC, 26.9.2020
-# TODO: If negative added tasks, then treat as zero
+# JGC, 25.10.2020
 
 DATAFILE="/Users/jonathan/Dropbox/NPSummaries/tasks_net.csv"
 todays_date=system("date +'%e %b %Y'")
@@ -19,7 +19,7 @@ set datafile separator comma
 set boxwidth 1.0 relative
 set style fill solid 1.0 border
 set border 3 # just bottom + left
-set key inside bottom center vertical box font "Avenir,10" 
+set key inside top center vertical box font "Avenir,10" 
 set key maxrows 3 maxcols 3
 set key reverse enhanced
 set key Left # as in left-algined; different from 'left' placement
@@ -32,7 +32,7 @@ bins_to_use = rows / 7
 # bins_to_use = 8 # 91 #date_range / 7
 set title sprintf("Net tasks completed vs added (%d weeks to %s)", bins_to_use, todays_date) font "Avenir,12"
 set xdata time
-set yrange [-100:*]
+set yrange [-200<*:*<200] # autoscale Y axis, but with -200, 200 limits
 set timefmt "%Y-%m-%d"
 set format x "%d %b %y"
 set xtics scale 1,0 out center nomirror 
@@ -40,13 +40,14 @@ set ytics scale 1,0 out nomirror
 set xzeroaxis
 show xzeroaxis
 # do main plot, summing together first 2 types to make it look like proper stacked
+# where 'added' tasks would go the wrong side of the origin, make zero instead
 set output "/Users/jonathan/Dropbox/NPSummaries/net_tasks.png"
 plot DATAFILE using 1:($5+$6+$7) bins=bins_to_use with boxes lc "#40ee40" title "Completed Other tasks",\
  "" using 1:($5+$6) bins=bins_to_use with boxes lc "#4d4df0" title "Completed Project tasks",\
  "" using 1:($5) bins=bins_to_use with boxes lc "#f04040" title "Completed Goal tasks",\
- "" using 1:(-$2-$3-$4) bins=bins_to_use with boxes lc "#90ee90" title "Added Other tasks",\
- "" using 1:(-$2-$3) bins=bins_to_use with boxes lc "#9090f0" title "Added Project tasks",\
- "" using 1:(-$2) bins=bins_to_use with boxes lc "#f0a2a2" title "Added Goal tasks",\
+ "" using 1:((-$2-$3-$4)<0 ? (-$2-$3-$4) : 0) bins=bins_to_use with boxes lc "#90ee90" title "Added Other tasks",\
+ "" using 1:((-$2-$3)<0 ? (-$2-$3) : 0) bins=bins_to_use with boxes lc "#9090f0" title "Added Project tasks",\
+ "" using 1:((-$2)<0 ? (-$2) : 0) bins=bins_to_use with boxes lc "#f0a2a2" title "Added Goal tasks",\
  "" using 1:10 with lines lw 2 lc "#10ce10" title "Cum. Other (net)",\
  "" using 1:9 with lines lw 2 lc "#1010f0" title "Cum. Project (net)",\
  "" using 1:8 with lines lw 2 lc "#c01010" title "Cum. Goal (net)"

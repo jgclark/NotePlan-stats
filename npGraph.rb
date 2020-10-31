@@ -71,7 +71,7 @@ INPUT_DIR = if STORAGE_TYPE == 'iCloud'
             end
 WORKING_DIR = '/Users/jonathan/GitHub/NotePlan-stats'.freeze
 NET_FILENAME = "#{INPUT_DIR}/tasks_net.csv".freeze
-net_lookback_days = 56 # 8 weeks
+net_lookback_days = 84 # 12 weeks
 
 # Colours, using the colorization gem
 TotalColour = :light_yellow
