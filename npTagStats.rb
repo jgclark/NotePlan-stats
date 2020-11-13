@@ -1,7 +1,7 @@
 #!/usr/bin/ruby
 #-------------------------------------------------------------------------------
 # NotePlan Tag Stats Summariser
-# Jonathan Clark, v1.4.1, 11.10.2020
+# Jonathan Clark, v1.5.0, 10.11.2020
 #-------------------------------------------------------------------------------
 # Script to give stats on various tags in NotePlan's daily calendar files.
 #
@@ -24,7 +24,7 @@
 # For more information, including installation, please see the GitHub repository:
 #   https://github.com/jgclark/NotePlan-stats/
 #-------------------------------------------------------------------------------
-VERSION = '1.4.1'.freeze
+VERSION = '1.5.0'.freeze
 
 require 'date'
 require 'time'
@@ -36,7 +36,7 @@ require 'optparse'
 STORAGE_TYPE = 'CloudKit'.freeze # or Dropbox or CloudKit or iCloud
 # Tags to count up.
 TAGS_TO_COUNT = ['#holiday', '#halfholiday', '#bankholiday', '#dayoff', '#sundayoff',
-                 '#friends', '#family', '#bbq', '#bookread', '#gardened', '#nap',
+                 '#friends', '#family', '#bbq', '#readtheology', '#finishedbook', '#gardened', '#nap',
                  '#preach', '#wedding', '#funeral', '#baptism', '#dedication', '#thanksgiving',
                  '#welcome', '#homevisit', '#conference', '#training', '#retreat', '#mentor', '#mentee', '#call', '#greek',
                  '#parkrun', '#dogwalk', '#dogrun', '#run',
@@ -53,7 +53,7 @@ DATE_TODAY_YYYYMMDD = TODAYS_DATE.strftime('%Y%m%d')
 NP_BASE_DIR = if STORAGE_TYPE == 'Dropbox'
                 "/Users/#{USERNAME}/Dropbox/Apps/NotePlan/Documents" # for Dropbox storage
               elsif STORAGE_TYPE == 'CloudKit'
-                "/Users/#{USERNAME}/Library/Application Support/co.noteplan.NotePlan3" # for CloudKit storage
+                "/Users/#{USERNAME}/Library/Containers/co.noteplan.NotePlan3/Data/Library/Application Support/co.noteplan.NotePlan3" # for CloudKit storage
               else
                 "/Users/#{USERNAME}/Library/Mobile Documents/iCloud~co~noteplan~NotePlan/Documents" # for iCloud storage (default)
               end
