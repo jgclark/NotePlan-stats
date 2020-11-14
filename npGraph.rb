@@ -5,7 +5,7 @@
 #-------------------------------------------------------------------------------
 # Script to graph the stats collected by the npStats.rb script from NotePlan.
 #
-# It finds statistics from the INPUT_DIR/task_stats.csv file.
+# It finds statistics from the input_dir/task_stats.csv file.
 # It creates graphs (.png files) summarising these statistics.
 #
 # It uses the 'googlecharts' gem, but it's no longer maintained.
@@ -33,15 +33,25 @@
 #   - gnuplot
 #
 # Configuration:
-# - StorageType: select iCloud (default) or Drobpox
-# - Username: the username of the Dropbox/iCloud account to use
+# - none needed to read data from NotePlan itself
+# - GP_SCRIPTS_DIR for where the various *.gp scripts live
+# - *_FILENAME for output files
 #-------------------------------------------------------------------------------
+# gnuplot help:
+# using 2 means that gnuplot will use the 2nd column from the file for the data it is plotting. If you are plotting x data vs. y data, the command is plot data using 1:2 if x data is in column 1 and y data is in column 2.  plot using 2 will plot the data from column 2 on the y axis, and for each data point the x coordinate will be incremented by 1.
+# You'll notice that the green and red bars are the same size: they both use column 2. If you don't want the first (red) bar to appear, you could change the plot command to
+# plot 'test.dat' using 2:xtic(1) title 'Col1', '' using 3 title 'Col2', '' using 4 title 'Col3'
+# With this command, the xtic labels will stay the same, and the first bar will no longer be there. Note that the colors for the data will change with this command, since the first thing plotted will be red, the second green and the third blue.
+#-------------------------------------------------------------------------------
+# - v0.6.1, 14.11.2020 - code cleanup
+# - v0.6, 13.11.2020 - adds graph of done tasks as a heatmap
+# - v0.5, 24.10.2020 - change file paths for input/output data files to ~/Dropbox/NPSummaries
+# - v0.4, 27.9.2020 - tweaks graph of net tasks
 # - v0.3, 29.8.2020 - write graphs of open and done tasks now using Gnuplot
 # - v0.2.2, 23.8.2020 - change tasks completed per day graph to differentiate between Goal/Project/Other
 # - v0.2.1, 23.8.2020 - add graph for number of tasks completed per day over last 6 months (using local gnuplot)
 # - v0.2, 11.7.2020 - produces graphs of number of open tasks over time for Goals/Projects/Other (using Google Charts API)
-VERSION = '0.3'.freeze
-# TODO: ideally only use latest line from CSV if there are multiples for that day
+VERSION = '0.6.1'.freeze
 
 require 'date'
 require 'time'
@@ -53,25 +63,27 @@ require 'csv' # basic help at https://www.rubyguides.com/2018/10/parse-csv-ruby/
 require 'array_arithmetic' # info at https://github.com/CJAdeszko/array_arithmetic
 require 'gnuplot'
 
-# User-setgpo_table constants
-STORAGE_TYPE = 'CloudKit'.freeze # or Dropbox
+# Constants
+USERNAME = ENV['LOGNAME'] # pull username from environment
+USER_DIR = ENV['HOME'] # pull home directory from environment
+DROPBOX_DIR = "#{USER_DIR}/Dropbox/Apps/NotePlan/Documents".freeze
+ICLOUDDRIVE_DIR = "#{USER_DIR}/Library/Mobile Documents/iCloud~co~noteplan~NotePlan/Documents".freeze
+CLOUDKIT_DIR = "#{USER_DIR}/Library/Containers/co.noteplan.NotePlan3/Data/Library/Application Support/co.noteplan.NotePlan3".freeze
+input_dir = DROPBOX_DIR if Dir.exist?(DROPBOX_DIR) && Dir[File.join(DROPBOX_DIR, '**', '*')].count { |file| File.file?(file) } > 1
+input_dir = ICLOUDDRIVE_DIR if Dir.exist?(ICLOUDDRIVE_DIR) && Dir[File.join(ICLOUDDRIVE_DIR, '**', '*')].count { |file| File.file?(file) } > 1
+input_dir = CLOUDKIT_DIR if Dir.exist?(CLOUDKIT_DIR) && Dir[File.join(CLOUDKIT_DIR, '**', '*')].count { |file| File.file?(file) } > 1
+
+# User-settable Constant Definitions
 DATE_FORMAT = '%d.%m.%y'.freeze
 DATE_TIME_FORMAT = '%e %b %Y %H:%M'.freeze
-USERNAME = 'jonathan'.freeze
-
-# Other Constant Definitions
 TODAYS_DATE = Date.today # can't work out why this needs to be a 'constant' to work -- something about visibility, I suppose
 DATE_TODAY_YYYYMMDD = TODAYS_DATE.strftime('%Y%m%d')
-INPUT_DIR = if STORAGE_TYPE == 'iCloud'
-              "/Users/#{USERNAME}/Library/Mobile Documents/iCloud~co~noteplan~NotePlan/Documents/Summaries" # for iCloud storage
-            elsif STORAGE_TYPE == 'Dropbox'
-              "/Users/#{USERNAME}/Dropbox/Apps/NotePlan/Documents/Summaries" # for Dropbox storage
-            else
-              "/Users/#{USERNAME}/Dropbox/NPSummaries" # for CloudKit use a Dropbox directory
-            end
-WORKING_DIR = '/Users/jonathan/GitHub/NotePlan-stats'.freeze
-NET_FILENAME = "#{INPUT_DIR}/tasks_net.csv".freeze
-net_lookback_days = 84 # 12 weeks
+GP_SCRIPTS_DIR = '/Users/jonathan/GitHub/NotePlan-stats'.freeze
+NET_FILENAME = "#{input_dir}/tasks_net.csv".freeze
+HEATMAP_FILENAME = "#{input_dir}/done_tasks_grid.csv".freeze
+NET_LOOKBACK_DAYS = 26*7 # 26 weeks
+DONE_PERIOD_WEEKS = 26 # 26 weeks = 6 months
+DATE_OUT_FORMAT = '%d %b %Y' # when writing new CSVs
 
 # Colours, using the colorization gem
 TotalColour = :light_yellow
@@ -105,7 +117,7 @@ end
 
 # Make sure we have set working directory to /Users/jonathan/GitHub/NotePlan-stats
 # which is needed if this is run automatically as a launchctl script.
-Dir.chdir(WORKING_DIR)
+Dir.chdir(GP_SCRIPTS_DIR)
 
 # Setup program options
 options = {}
@@ -133,6 +145,7 @@ $verbose = options[:verbose]
 # three = [3,4,4,5]
 # puts subtract(one, add(two,three))
 
+
 # -----------------------------------------------------------------------------------
 # Do graphs of when tasks were completed
 # -----------------------------------------------------------------------------------
@@ -144,10 +157,10 @@ $verbose = options[:verbose]
 #   2020-02-16,1,2,4
 # Note that this is sparse: not every date in the range might be present
 # begin
-#   td_table = CSV.parse(File.read(INPUT_DIR + '/task_done_dates.csv'), headers: true, converters: :all)
+#   td_table = CSV.parse(File.read(input_dir + '/task_done_dates.csv'), headers: true, converters: :all)
 #   puts "Created #{td_table.inspect} from reading task_done_dates.csv into td_table"
 # rescue StandardError => e
-#   puts "ERROR: '#{e.exception.message}' when reading #{INPUT_DIR}/task_done_dates.csv".colorize(WarningColour)
+#   puts "ERROR: '#{e.exception.message}' when reading #{input_dir}/task_done_dates.csv".colorize(WarningColour)
 # end
 
 # ------------------------------------------------------------------------------------
@@ -180,31 +193,6 @@ $verbose = options[:verbose]
 # done_dates = add(td_table.by_col['orddate'], td_table.by_col['count'])
 # puts 'done_dates: ', done_dates
 # done_last6m = done_dates
-
-# FIXME: Can't get this GoogleChart to work. Or is it doing just first 11 items or so?
-# chart_td = Gchart.new(type: 'bar',
-#                       stacked: false,
-#                       title: "When tasks were done (6 months to #{TODAYS_DATE})",
-#                       # size: '1200x600',
-#                       # :height => '500',
-#                       # bar_width_and_spacing: { spacing: 2, width: 5 },
-#                       data: [done_goal_last6m, done_project_last6m, done_other_last6m],
-#                       # :min_value => 0, # scale this properly
-#                       bar_colors: '2222ff,ff0000,00ff00',
-#                       filename: 'done_tasks_6m.png') # define chart
-# chart_td.file # write chart out
-# puts '-> done_tasks_6m.png'
-
-# but this example does, grrr.
-# temp = Gchart.new(type: 'bar',
-#                   data: [[1, 2, 4, 67, 100, 41, 234], [45, 23, 67, 12, 67, 300, 250]],
-#                   title: 'SD Ruby Fu level',
-#                   legend: %w[matt patrick],
-#                   # bg: { color: '76A4FB', type: 'gradient' },
-#                   stacked: false,
-#                   bar_colors: 'ff0000,00ff00',
-#                   filename: 'temp.png')
-# temp.file
 
 # Try gnuplot instead ...
 # - http://gnuplot.sourceforge.net/demo/layout.html shows multi-layouts of stacked bars
@@ -258,24 +246,26 @@ $verbose = options[:verbose]
 # Done = actual log of the number completed per day
 
 begin
-  stats_table = CSV.parse(File.read(INPUT_DIR + '/task_stats.csv'), headers: true, converters: :all)
+  stats_table = CSV.parse(File.read(input_dir + '/task_stats.csv'), headers: true, converters: :all)
   puts "Read #{stats_table.size} items from task_stats.csv into stats_table (class #{stats_table.class})"
 rescue StandardError => e
-  puts "ERROR: '#{e.exception.message}' when reading #{INPUT_DIR}/task_stats.csv".colorize(WarningColour)
+  puts "ERROR: '#{e.exception.message}' when reading #{input_dir}/task_stats.csv".colorize(WarningColour)
 end
 begin
-  done_table = CSV.parse(File.read(INPUT_DIR + '/task_done_dates.csv'), headers: true, converters: :all)
+  done_table = CSV.parse(File.read(input_dir + '/task_done_dates.csv'), headers: true, converters: :all)
   puts "Read #{done_table.size} items from task_done_dates.csv into done_table  (class #{done_table.class})"
 rescue StandardError => e
-  puts "ERROR: '#{e.exception.message}' when reading #{INPUT_DIR}/task_done_dates.csv".colorize(WarningColour)
+  puts "ERROR: '#{e.exception.message}' when reading #{input_dir}/task_done_dates.csv".colorize(WarningColour)
 end
-start_date = TODAYS_DATE - net_lookback_days
+start_date = TODAYS_DATE - NET_LOOKBACK_DAYS
+
+# TODO: ideally only use latest line from CSV if there are multiples for that day
 
 # Create hash of added tasks (g/p/o) for each day
 addedh = Hash.new { Array.new(3, 0) }
 last_gt = last_pt = last_ot = 0
 stats_table.each do |st|
-  d = Date.strptime(st[0][0..10], '%d %b %Y') # ignore time portion of datetime string
+  d = Date.strptime(st[0][0..10], DATE_OUT_FORMAT) # ignore time portion of datetime string
   next unless d >= start_date
 
   addedh.store(d.to_s, [st[4] + st[5] + st[6] + st[7] + st[8] - last_gt,
@@ -296,11 +286,11 @@ done_table.each do |dt|
 end
 # print_table(doneh)
 # Create summary array to write out
-summarya = Array.new(net_lookback_days, 0)
+summarya = Array.new(NET_LOOKBACK_DAYS, 0)
 i = 0
 d = start_date + 1
 tag = tap = tao = 0
-while i < net_lookback_days
+while i < NET_LOOKBACK_DAYS
   aa = addedh.fetch(d.to_s, [0, 0, 0]) # lookup from addedh, defaulting to 0
   da = doneh.fetch(d.to_s, [0, 0, 0])  # lookup from doneh, defaulting to 0
   tag += da[0] - aa[0] # running total of net G
@@ -324,6 +314,62 @@ gp_call_result = system("/usr/local/bin/gnuplot '#{gp_commands}'")
 puts 'ERROR: Hit problem when creating Net Tasks graph using gnuplot'.colorize(WarningColour) unless gp_call_result
 
 # -----------------------------------------------------------------------------------
+# Do heatmap graphs of completed tasks
+# -----------------------------------------------------------------------------------
+
+# Reuse data worked out in last step, and write out in a new file structure:
+#   W/C, Mon, Tues, Weds ...
+#   date, tasks completed for that day in the week, ...
+#   date of next week, tasks completed for that day in the week, ...
+#   ...
+start_date = TODAYS_DATE - (DONE_PERIOD_WEEKS * 7)
+week_of_start_date = start_date.strftime('%W') # week starting Mondays. Days in Jan before Monday are in week 0.
+
+# Create new data structure, reusing data doneh hash from above
+done_grida = Array.new(DONE_PERIOD_WEEKS+2) { Array.new(8) {0} } # extra 2 weeks to allow for data not starting on a Monday
+w = 1
+d = start_date
+date_week_start = (d - d.strftime('%u').to_i + 1).strftime(DATE_OUT_FORMAT) # work out date at start of week of first data entry
+done_grida[w][0] = date_week_start
+while d < TODAYS_DATE
+  day_of_week = d.strftime('%u').to_i # Monday is 1, ...
+  if day_of_week == 1
+    w += 1
+    date_week_start = d.strftime(DATE_OUT_FORMAT)
+    done_grida[w][0] = date_week_start
+    # TODO: update date string if it's the change of year
+  end
+  data = doneh.fetch(d.to_s, [0, 0, 0]) # get data, defaulting to zeros
+  calc = data[0] + data[1] + data[2] # for now save sum of G+P+O tasks completed
+  done_grida[w][day_of_week] = calc
+  d += 1
+end
+
+# Now transpose the array so that it is wide not deep
+# done_grida.reverse!
+# puts done_grida
+done_grida[0] = ['Week commencing','Mon','Tues','Weds','Thurs','Fri','Sat','Sun']
+done_grid_transposeda = done_grida.transpose
+
+# Write out new structure to CSV file
+begin
+  # Use the CSV library to help make this (a bit) easier
+  puts "Writing #{w} lines to #{HEATMAP_FILENAME} ..."
+  CSV.open(HEATMAP_FILENAME, 'w') do |csv_file|
+    done_grid_transposeda.each do |sa|
+      row = sa
+      csv_file << row
+    end
+  end
+rescue StandardError => e
+  puts "ERROR: '#{e.exception.message}' when writing #{HEATMAP_FILENAME}".colorize(WarningColour)
+end
+
+gp_commands = 'done_tasks_heatmap.gp'
+gp_call_result = system("/usr/local/bin/gnuplot '#{gp_commands}'")
+puts 'ERROR: Hit problem when creating graphs using gnuplot'.colorize(WarningColour) unless gp_call_result
+
+# -----------------------------------------------------------------------------------
 # Do graphs of open tasks
 # -----------------------------------------------------------------------------------
 
@@ -334,10 +380,10 @@ puts 'ERROR: Hit problem when creating Net Tasks graph using gnuplot'.colorize(W
 # From a file: read and parse all at once  (info: https://www.rubyguides.com/2018/10/parse-csv-ruby/)
 # (There are other 'Date' and 'DateTime' converters.)
 begin
-  gpo_table = CSV.parse(File.read(INPUT_DIR + '/task_stats.csv'), headers: true, converters: :all)
+  gpo_table = CSV.parse(File.read(input_dir + '/task_stats.csv'), headers: true, converters: :all)
   puts "Read #{gpo_table.size} items from task_stats.csv into gpo_table"
 rescue StandardError => e
-  puts "ERROR: '#{e.exception.message}' when reading #{INPUT_DIR}/task_stats.csv".colorize(WarningColour)
+  puts "ERROR: '#{e.exception.message}' when reading #{input_dir}/task_stats.csv".colorize(WarningColour)
 end
 
 gp_commands = 'open_tasks.gp'
@@ -346,8 +392,9 @@ puts 'ERROR: Hit problem when creating graphs using gnuplot'.colorize(WarningCol
 
 exit
 
-#------------------------------------------------------------------------
-# Earlier versions, using GoogleCharts (unmaintained it seems)
+#=================================================================================
+# Earlier versions, using GoogleCharts gem (unmaintained it seems)
+#=================================================================================
 
 begin
   # Create chart to show difference between complete and open tasks over time
@@ -391,8 +438,6 @@ begin
   # Record file in filesystem
   chart_oo.file
   puts '-> other_task_spark.png'
-
-  exit
 
   # Create chart to show task completions over time
   # TODO: Check to see whether this is actually putting out sensible numbers, and scales
@@ -447,13 +492,32 @@ begin
   # Record file in filesystem
   chart3.file
   puts '-> task_diffs.png'
+
+  # FIXME: Can't get this GoogleChart to work. Or is it doing just first 11 items or so?
+# chart_td = Gchart.new(type: 'bar',
+#                       stacked: false,
+#                       title: "When tasks were done (6 months to #{TODAYS_DATE})",
+#                       # size: '1200x600',
+#                       # :height => '500',
+#                       # bar_width_and_spacing: { spacing: 2, width: 5 },
+#                       data: [done_goal_last6m, done_project_last6m, done_other_last6m],
+#                       # :min_value => 0, # scale this properly
+#                       bar_colors: '2222ff,ff0000,00ff00',
+#                       filename: 'done_tasks_6m.png') # define chart
+# chart_td.file # write chart out
+# puts '-> done_tasks_6m.png'
+
+# but this example does, grrr.
+# temp = Gchart.new(type: 'bar',
+#                   data: [[1, 2, 4, 67, 100, 41, 234], [45, 23, 67, 12, 67, 300, 250]],
+#                   title: 'SD Ruby Fu level',
+#                   legend: %w[matt patrick],
+#                   # bg: { color: '76A4FB', type: 'gradient' },
+#                   stacked: false,
+#                   bar_colors: 'ff0000,00ff00',
+#                   filename: 'temp.png')
+# temp.file
+
 rescue StandardError => e
   puts "ERROR: Hit '#{e.exception.message}' when creating graphs using GoogleCharts API".colorize(WarningColour)
 end
-
-#---------------------------------------------------------
-# gnuplot help:
-# using 2 means that gnuplot will use the 2nd column from the file for the data it is plotting. If you are plotting x data vs. y data, the command is plot data using 1:2 if x data is in column 1 and y data is in column 2.  plot using 2 will plot the data from column 2 on the y axis, and for each data point the x coordinate will be incremented by 1.
-# You'll notice that the green and red bars are the same size: they both use column 2. If you don't want the first (red) bar to appear, you could change the plot command to
-# plot 'test.dat' using 2:xtic(1) title 'Col1', '' using 3 title 'Col2', '' using 4 title 'Col3'
-# With this command, the xtic labels will stay the same, and the first bar will no longer be there. Note that the colors for the data will change with this command, since the first thing plotted will be red, the second green and the third blue.

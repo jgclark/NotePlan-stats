@@ -68,14 +68,14 @@ set key enhanced
 # set key autotitle columnheader
 stats FILENAME using 1 nooutput
 set xdata time
-set timefmt "%d %b %Y %H:%M"
+set timefmt "%d %b %Y %H:%M" # format of the dates in the input
 # We need to give xrange start and end dates explicitly as we are about to unset xaxis
 # first_date = GPVAL_X_MIN # doesn't work as we haven't yet plotted anything
 # first_date = STATS_min # doesn't work; trying STATS_min on timedata
 first_date = system("head -n 2 " . FILENAME . " | tail -1 | cut -f 1 -d ','")
 todays_date = system("date +'%d %b %Y %H:%M'") # today's date in current timefmt
 set xrange [first_date:todays_date]
-set format x "%b-%y"
+set format x "%b %y"
 unset xtics # unset for first two graphs. This appears to change xscale.
 set yrange [0:*]  # automatic
 set ytics out nomirror font ",8"
