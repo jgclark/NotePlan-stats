@@ -1,7 +1,7 @@
 #!/usr/bin/ruby
 #-------------------------------------------------------------------------------
 # NotePlan Tag Stats Summariser
-# Jonathan Clark, v1.5.0, 10.11.2020
+# Jonathan Clark, v1.5.1, 14.11.2020
 #-------------------------------------------------------------------------------
 # Script to give stats on various tags in NotePlan's daily calendar files.
 #
@@ -24,7 +24,7 @@
 # For more information, including installation, please see the GitHub repository:
 #   https://github.com/jgclark/NotePlan-stats/
 #-------------------------------------------------------------------------------
-VERSION = '1.5.0'.freeze
+VERSION = '1.5.1'.freeze
 
 require 'date'
 require 'time'
@@ -32,8 +32,6 @@ require 'etc' # for login lookup, though currently not used
 require 'colorize' # for coloured output using https://github.com/fazibear/colorize
 require 'optparse'
 
-# User-settable constants
-STORAGE_TYPE = 'CloudKit'.freeze # or Dropbox or CloudKit or iCloud
 # Tags to count up.
 TAGS_TO_COUNT = ['#holiday', '#halfholiday', '#bankholiday', '#dayoff', '#sundayoff',
                  '#friends', '#family', '#bbq', '#readtheology', '#finishedbook', '#gardened', '#nap',
@@ -42,27 +40,30 @@ TAGS_TO_COUNT = ['#holiday', '#halfholiday', '#bankholiday', '#dayoff', '#sunday
                  '#parkrun', '#dogwalk', '#dogrun', '#run',
                  '#leadaaw', '#leadmw', '#leadmp', '#leadhc', '#recordvideo', '#editvideo', '#article',
                  '#firekiln', '#glassmaking', '#tiptrip'].sort # simple array of strings
-MENTIONS_TO_COUNT = ['@work', '@sleep'].freeze
+MENTIONS_TO_COUNT = ['@work', '@written', '@sleep', '@water'].freeze
+
+# Other User-settable Constant Definitions
 DATE_FORMAT = '%d.%m.%y'.freeze
 DATE_TIME_FORMAT = '%e %b %Y %H:%M (week %V, day %j)'.freeze
-USERNAME = 'jonathan'.freeze
 
-# Other Constant Definitions
+# Constants
+USERNAME = ENV['LOGNAME'] # pull username from environment
+USER_DIR = ENV['HOME'] # pull home directory from environment
+DROPBOX_DIR = "#{USER_DIR}/Dropbox/Apps/NotePlan/Documents".freeze
+ICLOUDDRIVE_DIR = "#{USER_DIR}/Library/Mobile Documents/iCloud~co~noteplan~NotePlan/Documents".freeze
+CLOUDKIT_DIR = "#{USER_DIR}/Library/Containers/co.noteplan.NotePlan3/Data/Library/Application Support/co.noteplan.NotePlan3".freeze
+np_base_dir = DROPBOX_DIR if Dir.exist?(DROPBOX_DIR) && Dir[File.join(DROPBOX_DIR, '**', '*')].count { |file| File.file?(file) } > 1
+np_base_dir = ICLOUDDRIVE_DIR if Dir.exist?(ICLOUDDRIVE_DIR) && Dir[File.join(ICLOUDDRIVE_DIR, '**', '*')].count { |file| File.file?(file) } > 1
+np_base_dir = CLOUDKIT_DIR if Dir.exist?(CLOUDKIT_DIR) && Dir[File.join(CLOUDKIT_DIR, '**', '*')].count { |file| File.file?(file) } > 1
 TODAYS_DATE = Date.today # can't work out why this needs to be a 'constant' to work -- something about visibility, I suppose
 DATE_TODAY_YYYYMMDD = TODAYS_DATE.strftime('%Y%m%d')
-NP_BASE_DIR = if STORAGE_TYPE == 'Dropbox'
-                "/Users/#{USERNAME}/Dropbox/Apps/NotePlan/Documents" # for Dropbox storage
-              elsif STORAGE_TYPE == 'CloudKit'
-                "/Users/#{USERNAME}/Library/Containers/co.noteplan.NotePlan3/Data/Library/Application Support/co.noteplan.NotePlan3" # for CloudKit storage
-              else
-                "/Users/#{USERNAME}/Library/Mobile Documents/iCloud~co~noteplan~NotePlan/Documents" # for iCloud storage (default)
-              end
-NP_NOTE_DIR = "#{NP_BASE_DIR}/Notes".freeze
-NP_CALENDAR_DIR = "#{NP_BASE_DIR}/Calendar".freeze
-OUTPUT_DIR = if STORAGE_TYPE == 'CloudKit'
+NP_NOTE_DIR = "#{np_base_dir}/Notes".freeze
+NP_CALENDAR_DIR = "#{np_base_dir}/Calendar".freeze
+# TODO: Check whether Summaries directory exists. If not, create it.
+OUTPUT_DIR = if Dir.exist?(CLOUDKIT_DIR) && Dir[File.join(CLOUDKIT_DIR, '**', '*')].count { |file| File.file?(file) } > 1
                "/Users/#{USERNAME}/Dropbox/NPSummaries" # save in user's home directory as it won't be sync'd in a CloudKit directory
              else
-               "#{NP_BASE_DIR}/Summaries".freeze # but otherwise store in Summaries/ directory
+               "#{np_base_dir}/Summaries".freeze # but otherwise store in Summaries/ directory
              end
 
 # Colours, using the colorization gem
@@ -89,15 +90,15 @@ class NPCalendar
     @id = id
     @lines = []
     @lineCount = 0
-    @tags = ''
-    @mentions = ''
+    @tags = [] # hold array of #tags found
+    @mentions = '' # hold string space-separated list of @mentions found
     @is_future = false
     @week_num = nil
 
     # mark this as a future date if the filename YYYYMMDD part as a string is greater than DateToday in YYYYMMDD format
     yyyymmdd = @filename[0..7]
     @is_future = true if yyyymmdd > DATE_TODAY_YYYYMMDD
-    puts "  Initialising #{@filename}".colorize(TotalColour) if $verbose
+    puts "  Initialising #{@filename}".colorize(TotalColour) if $verbose > 1
     # save which week number this is (NB: 00-53 are apparently all possible),
     # based on weeks starting on first Monday of year (1), and before then 0
     this_date = Date.strptime(@filename, '%Y%m%d')
@@ -112,12 +113,14 @@ class NPCalendar
         lines += line
       end
     end
-    # extract all #hashtags from lines and store
-    @tags = lines.scan(%r{#[\w/]+}).join(' ')
-    puts "    Found tags: #{@tags}" if $verbose && !@tags.empty?
-    # extract all @mentions(something) from lines and store
+
+    # extract all #hashtags from lines and store in an array
+    @tags = lines.scan(%r{#[\w/]+})
+    puts "    Found tags: #{@tags}" if $verbose > 1 && !@tags.empty?
+
+    # extract all @mentions(something) from lines and store in an array
     @mentions = lines.scan(%r{@[\w/]+\(\d+?\)}).join(' ')
-    puts "    Found mentions: #{@mentions}" if $verbose && !@mentions.empty?
+    puts "    Found mentions: #{@mentions}" if $verbose > 1 && !@mentions.empty?
   rescue StandardError => e
     puts "ERROR: Hit #{e.exception.message} when initialising NPCalendar from #{@filename}!".colorize(WarningColour)
   end
@@ -134,7 +137,7 @@ opt_parser = OptionParser.new do |opts|
   opts.separator ''
   options[:all] = false
   options[:write_file] = true
-  options[:verbose] = false
+  options[:verbose] = 0
   # opts.on('-a', '--all', 'Count all found tags, not just those configured in TAGS_TO_COUNT') do
   #   options[:all] = true
   # end
@@ -146,7 +149,10 @@ opt_parser = OptionParser.new do |opts|
     options[:write_file] = false
   end
   opts.on('-v', '--verbose', 'Show information as I work') do
-    options[:verbose] = true
+    options[:verbose] = 1
+  end
+  opts.on('-w', '--moreverbose', 'Show more information as I work') do
+    options[:verbose] = 2
   end
 end
 opt_parser.parse! # parse out options, leaving file patterns to process
@@ -161,16 +167,19 @@ calFiles = [] # to hold all relevant calendar objects
 
 # Work out which year's calendar files to be summarising
 the_year_str = ARGV[0] || this_year_str
-print "Creating stats at #{time_now_fmt} for #{the_year_str}"
+puts "Creating stats at #{time_now_fmt} for #{the_year_str}"
 begin
   Dir.chdir(NP_CALENDAR_DIR)
-    Dir.glob(["#{the_year_str}*.txt", "#{the_year_str}*.md"]).each do |this_file|
+  Dir.glob(["#{the_year_str}*.txt", "#{the_year_str}*.md"]).each do |this_file|
     # ignore this file if the directory starts with '@'
     # fsize = File.size?(this_file) || 0
-    # puts "#{this_file} size #{fsize}" if $verbose
+    # puts "#{this_file} size #{fsize}" if $verbose.positive?
     next unless this_file =~ /^[^@]/ # as can't get file glob including [^@] to work
     # ignore this file if it's empty
-    next if File.zero?(this_file)
+    if File.zero?(this_file)
+      puts "  NB: file #{this_file} is empty".colorize(WarningColour)
+      next
+    end
 
     calFiles[n] = NPCalendar.new(this_file, n)
     n += 1
@@ -200,64 +209,61 @@ if n.positive?
   # Helpful ruby hash summary: https://www.tutorialspoint.com/ruby/ruby_hashes.htm
   # Nested hash examples: http://www.korenlc.com/nested-arrays-hashes-loops-in-ruby/
   param_counts = Hash.new(0)
-  mention_week_totals = Array.new(53) { Array.new(2,0) }
+  mention_week_totals = Array.new(53) { Array.new(2, 0) }
   mi = 0
   MENTIONS_TO_COUNT.each do |m|
     # create empty nested hashes for each @mention
     param_counts[m] = Hash.new(0)
-    # w = 0
-    # while w<=52
-    # puts mention_week_totals[w][mi]
-    #   # mention_week_totals[w][mi] = 0
-    #   w += 1
-    # end
-    # mi += 1
   end
 
   #-----------------------------------------------------------------------
-  # Do counts
+  # Do counts of tags
   #-----------------------------------------------------------------------
   days = futureDays = 0
   # Iterate over all Calendar items
   calFiles.each do |cal|
     # puts "  Scanning file #{cal.filename}: #{cal.tags}"
     i = 0
+
     # Count #tags of interest
     TAGS_TO_COUNT.each do |t|
-      if cal.tags =~ /#{t}/i # case-insensitive
-        if cal.is_future
-          tag_counts_future[i] = tag_counts_future[i] + 1
-        else
-          tag_counts[i] = tag_counts[i] + 1
+      cal.tags.each do |c|
+        if c =~ /#{t}/i # case-insensitive search
+          if cal.is_future
+            tag_counts_future[i] = tag_counts_future[i] + 1
+          else
+            tag_counts[i] = tag_counts[i] + 1
+          end
         end
       end
       i += 1
     end
+
+    # Count @mentions(n) of interest -- none of which should be in the future
+    # and also make a note on which week they were found
+    mi = 0 # counter for which @mention we're looking for
+    MENTIONS_TO_COUNT.each do |m|
+
+      # for each @mention(n) get the value of n
+      cal.mentions.scan(/#{m}\((\d+?)\)/i).each do |ns| # case-insensitive scan
+        ni = ns.join.to_i # turn string element from array into integer
+        pc = param_counts[m].fetch(ni, 0) # get current value, or if doesn't exist, default to 0
+        puts "   #{cal.filename} has #{m}(#{ns}); already seen #{pc} of them" if $verbose > 1
+        param_counts[m][ni] = pc + 1
+        puts "     #{cal.week_num} #{mi} #{ni} = #{mention_week_totals[cal.week_num][mi]}" if $verbose > 1
+        mention_week_totals[cal.week_num][mi] += ni
+      end
+      mi += 1 
+    end
+
+    # also track number of future vs past days
     if cal.is_future
       futureDays += 1
     else
       days += 1
     end
-
-    # Count @mentions(n) of interest
-    i = 0
-    mi = 0
-    MENTIONS_TO_COUNT.each do |m|
-      next unless cal.mentions =~ /#{m}\(\d+?\)/i # case-insensitive
-
-      puts "   #{cal.filename} has #{cal.mentions}" if $verbose
-      cal.mentions.scan(/#{m}\((\d+?)\)/).each do |p|
-        pi = p.join.to_i # deal with integers rather than their string equivalents
-        pc = param_counts[m].fetch(pi, 0) # get current value, or if doesn't exist, default to 0
-        puts "    new #{m}(#{p})   already seen #{pc}" if $verbose
-        param_counts[m][pi] = pc + 1
-        # puts "#{cal.week_num} #{mi} #{pi} = #{mention_week_totals[cal.week_num][mi]}"
-        mention_week_totals[cal.week_num][mi] += pi
-      end
-      mi += 1
-    end
   end
-  puts if $verbose
+  puts if $verbose > 1
 
   #-----------------------------------------------------------------------
   # Write outputs: screen and perhaps file as well
@@ -265,7 +271,6 @@ if n.positive?
   # Write out to a file (replacing any existing one)
   # begin
   if options[:write_file]
-    # TODO: Check whether Summaries directory exists. If not, create it.
     filepath = OUTPUT_DIR + '/' + the_year_str + '_tag_stats.csv'
     f = File.open(filepath, 'w')
   end
@@ -292,13 +297,19 @@ if n.positive?
     ma = param_counts[m].sort
     next if ma.empty?
 
-    m_key_screen = '  Param:'
-    m_key_file = 'Param'
-    m_value_screen = '  Count:'
+    # puts ma if $verbose > 1
+    m_key_screen = 'Value:'
+    m_key_file = 'Value'
+    m_value_screen = 'Count:'
     m_value_file = 'Count'
-    # m_sum_screen = '  Total:'
-    # m_sum_file = 'Total'
+    m_sum_screen = 'Total:'
+    m_sum_file = 'Total'
+    m_average_screen = 'Avg:  '
+    m_average_file = 'Avg:  '
     i = 0
+    m_sum = 0
+    m_count = 0
+    m_avg = 0.0
     while i < ma.size
       mak = ma[i][0]
       mav = ma[i][1]
@@ -307,17 +318,23 @@ if n.positive?
       m_key_file += ",#{mak}"
       m_value_file += ",#{mav}"
       i += 1
-      # Calculate the sum of this k*v
-      # m_sum = mak * mav
-      # m_sum_screen += "\t#{m_sum}"
-      # m_sum_file += ",#{m_sum}"
+      # Track the sum of this k*v
+      m_sum += mav * mak
+      m_count += mav
+      puts "   #{mav} * #{mak} -> #{m_sum} (cum) over #{m_count} (cum)" if $verbose > 1
     end
+    m_avg = (m_sum / m_count).round(1)
+    m_sum_screen += "\t#{m_sum}"
+    m_average_screen += "\t#{m_avg}"
+    m_sum_file += ",#{m_sum}"
+    m_average_file += ",#{m_avg}"
 
     # Write output to screen
     puts "\n#{m} mentions for #{the_year_str}".colorize(TotalColour)
     puts m_key_screen
     puts m_value_screen
-    # puts m_sum_screen
+    puts m_sum_screen
+    puts m_average_screen
 
     # Write output to file
     next unless options[:write_file]
@@ -325,56 +342,58 @@ if n.positive?
     f.puts "\n#{m} mentions for #{the_year_str}"
     f.puts m_key_file
     f.puts m_value_file
-    # f.puts m_sum_file
+    f.puts m_sum_file
+    f.puts m_average_file
   end
 
-    # Calc and write out @mention totals
-    m_head_screen = "\nWeek #\tW/C"
-    m_head_file = "\nWeek #,W/C"
-    m_sum = Array.new(MENTIONS_TO_COUNT.count,0)
-    m_sum_screen = "\tTotal:"
-    m_sum_file = ',Total'
+  # Calc and write out @mention totals
+  m_head_screen = "\nWeek#  W/C       "
+  m_head_file = "\nWeek#,W/C"
+  m_sum = Array.new(MENTIONS_TO_COUNT.count,0)
+  m_sum_screen = "            Total:"
+  m_sum_file = ',Total'
+  mi = 0
+  mc = 0
+  while mi < MENTIONS_TO_COUNT.count
+    m_head_screen += "\t#{MENTIONS_TO_COUNT[mi]}"
+    m_head_file += ",#{MENTIONS_TO_COUNT[mi]}"
+    mi += 1
+  end
+  puts m_head_screen.colorize(TotalColour)
+  f.puts m_head_file if options[:write_file]
+  w = 1 # start from week 1, as otherwise week commencing won't work
+  while w <= this_week_num
+    wp = "#{this_year_str} #{w}"
+    wc = Date.strptime(wp, '%Y %W').strftime('%-d.%-m.%Y') # week commencing
+    outs = sprintf("%2d     %-10s  ", w, wc).to_s
+    outf = "#{w},#{wc}"
     mi = 0
     mc = 0
     while mi < MENTIONS_TO_COUNT.count
-      m_head_screen += "\t#{MENTIONS_TO_COUNT[mi]}"
-      m_head_file += ",#{MENTIONS_TO_COUNT[mi]}"
+      mwt = !mention_week_totals[w][mi].nil? ? mention_week_totals[w][mi] : 0
+      m_sum[mi] += mwt # sum how many items for this mention
+      mc += mwt # sum how many items reported this week
+      outs += "\t#{mwt}"
+      outf += ",#{mwt}"
       mi += 1
     end
-    puts m_head_screen.colorize(TotalColour)
-    f.puts m_head_file if options[:write_file]
-    w = 1 # start from week 1, as otherwise week commencing won't work
-    while w < this_week_num
-      wp = "#{this_year_str} #{w.to_s}"
-      wc = Date.strptime(wp, "%Y %W").strftime("%-d/%-m") # week commencing
-      outs = "#{w}\t#{wc}"
-      outf = "#{w},#{wc}"
-      mi = 0
-      mc = 0
-      while mi < MENTIONS_TO_COUNT.count
-        mwt = mention_week_totals[w][mi]
-        m_sum[mi] += mwt # sum how many items for this mention
-        mc += mwt # sum how many items reported this week
-        outs += "\t#{mwt}"
-        outf += ",#{mwt}"
-        mi += 1
-      end
-      # write this week's totals, but only if there if any are non-zero
-      if (mc>0) 
-        puts outs
-        f.puts outf if options[:write_file] # also write output to file
-      end
-      w += 1
+    
+    # write this week's totals, if there if any are non-zero
+    if mc.positive?
+      puts outs
+      f.puts outf if options[:write_file] # also write output to file
     end
-    mi = 0
-    while mi < MENTIONS_TO_COUNT.count
-      m_sum_screen += "\t#{m_sum[mi]}"
-      m_sum_file += ",#{m_sum[mi]}"
-      mi += 1
-    end
-    puts "#{m_sum_screen}".colorize(TotalColour)
-    f.puts m_sum_file if options[:write_file] # also write output to file
-    f.close if options[:write_file]
+    w += 1
+  end
+  mi = 0
+  while mi < MENTIONS_TO_COUNT.count
+    m_sum_screen += "\t#{m_sum[mi]}"
+    m_sum_file += ",#{m_sum[mi]}"
+    mi += 1
+  end
+  puts "#{m_sum_screen}".colorize(TotalColour)
+  f.puts m_sum_file if options[:write_file] # also write output to file
+  f.close if options[:write_file]
 
   # rescue StandardError => e
   #   puts "ERROR: Hit #{e.exception.message} when writing out summary to screen or #{filepath}".colorize(WarningColour)

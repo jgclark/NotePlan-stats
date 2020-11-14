@@ -50,6 +50,11 @@
 Initial load into this GitHub project.
 
 ## for npTagStats
+### v1.5.1, 14.10.2020
+- [Fix] Multiple #tags on the same line were only being counted once. Fixed.
+- [Improve] Add Total and Average to @mention counts
+- [Improve] Automatic configuration of NotePlan storage (CloudKit > iCloudDrive > Dropbox)
+
 ### v1.4.1, 11.10.2020
 - [New] Support .md as well as .txt files (issue #8)
 - [Improve] Improve formatting of @mentions output by adding week commencing date and hiding weeks with no data (issue #10)
