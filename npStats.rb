@@ -44,12 +44,12 @@ NP_BASE_DIR = if STORAGE_TYPE == 'Dropbox'
               else
                 "/Users/#{USERNAME}/Library/Containers/co.noteplan.NotePlan3/Data/Library/Application Support/co.noteplan.NotePlan3" # for CloudKit storage (default)
               end
-NP_CALENDAR_DIR = "#{np_base_dir}/Calendar".freeze
-NP_NOTE_DIR = "#{np_base_dir}/Notes".freeze
+NP_CALENDAR_DIR = "#{NP_BASE_DIR}/Calendar".freeze
+NP_NOTE_DIR = "#{NP_BASE_DIR}/Notes".freeze
 OUTPUT_DIR = if STORAGE_TYPE == 'CloudKit'
                "/Users/#{USERNAME}/Dropbox/NPSummaries" # save in user's home Dropbox directory as it won't be sync'd in a CloudKit directory
              else
-               "#{np_base_dir}/Summaries".freeze # but otherwise store in Summaries/ directory
+               "#{NP_BASE_DIR}/Summaries".freeze # but otherwise store in Summaries/ directory
              end
 
 # Other variables that need to be global
