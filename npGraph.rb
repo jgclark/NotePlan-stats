@@ -5,7 +5,7 @@
 #-------------------------------------------------------------------------------
 # Script to graph the stats collected by the npStats.rb script from NotePlan.
 #
-# It finds statistics from the input_dir/task_stats.csv file.
+# It finds statistics from the IO_DIR/task_stats.csv file.
 # It creates graphs (.png files) summarising these statistics.
 #
 # It uses the 'googlecharts' gem, but it's no longer maintained.
@@ -69,9 +69,10 @@ USER_DIR = ENV['HOME'] # pull home directory from environment
 DROPBOX_DIR = "#{USER_DIR}/Dropbox/Apps/NotePlan/Documents".freeze
 ICLOUDDRIVE_DIR = "#{USER_DIR}/Library/Mobile Documents/iCloud~co~noteplan~NotePlan/Documents".freeze
 CLOUDKIT_DIR = "#{USER_DIR}/Library/Containers/co.noteplan.NotePlan3/Data/Library/Application Support/co.noteplan.NotePlan3".freeze
-input_dir = DROPBOX_DIR if Dir.exist?(DROPBOX_DIR) && Dir[File.join(DROPBOX_DIR, '**', '*')].count { |file| File.file?(file) } > 1
-input_dir = ICLOUDDRIVE_DIR if Dir.exist?(ICLOUDDRIVE_DIR) && Dir[File.join(ICLOUDDRIVE_DIR, '**', '*')].count { |file| File.file?(file) } > 1
-input_dir = CLOUDKIT_DIR if Dir.exist?(CLOUDKIT_DIR) && Dir[File.join(CLOUDKIT_DIR, '**', '*')].count { |file| File.file?(file) } > 1
+IO_DIR = "#{DROPBOX_DIR}/Summaries" if Dir.exist?(DROPBOX_DIR) && Dir[File.join(DROPBOX_DIR, '**', '*')].count { |file| File.file?(file) } > 1
+IO_DIR = "#{ICLOUDDRIVE_DIR}/Summaries" if Dir.exist?(ICLOUDDRIVE_DIR) && Dir[File.join(ICLOUDDRIVE_DIR, '**', '*')].count { |file| File.file?(file) } > 1
+IO_DIR = "#{USER_DIR}/Dropbox/NPSummaries" if Dir.exist?(CLOUDKIT_DIR) && Dir[File.join(CLOUDKIT_DIR, '**', '*')].count { |file| File.file?(file) } > 1
+  # NB: not the usual CloudKit directory, as non-NotePlan folders won't sync from it.
 
 # User-settable Constant Definitions
 DATE_FORMAT = '%d.%m.%y'.freeze
@@ -79,11 +80,11 @@ DATE_TIME_FORMAT = '%e %b %Y %H:%M'.freeze
 TODAYS_DATE = Date.today # can't work out why this needs to be a 'constant' to work -- something about visibility, I suppose
 DATE_TODAY_YYYYMMDD = TODAYS_DATE.strftime('%Y%m%d')
 GP_SCRIPTS_DIR = '/Users/jonathan/GitHub/NotePlan-stats'.freeze
-NET_FILENAME = "#{input_dir}/tasks_net.csv".freeze
-HEATMAP_FILENAME = "#{input_dir}/done_tasks_grid.csv".freeze
+NET_FILENAME = "#{IO_DIR}/tasks_net.csv".freeze
+HEATMAP_FILENAME = "#{IO_DIR}/done_tasks_matrix.csv".freeze
 NET_LOOKBACK_DAYS = 26*7 # 26 weeks
 DONE_PERIOD_WEEKS = 26 # 26 weeks = 6 months
-DATE_OUT_FORMAT = '%d %b %Y' # when writing new CSVs
+DATE_OUT_FORMAT = '%d %b' # when writing new CSVs. Ignoring %Y now.
 
 # Colours, using the colorization gem
 TotalColour = :light_yellow
@@ -157,10 +158,10 @@ $verbose = options[:verbose]
 #   2020-02-16,1,2,4
 # Note that this is sparse: not every date in the range might be present
 # begin
-#   td_table = CSV.parse(File.read(input_dir + '/task_done_dates.csv'), headers: true, converters: :all)
+#   td_table = CSV.parse(File.read(IO_DIR + '/task_done_dates.csv'), headers: true, converters: :all)
 #   puts "Created #{td_table.inspect} from reading task_done_dates.csv into td_table"
 # rescue StandardError => e
-#   puts "ERROR: '#{e.exception.message}' when reading #{input_dir}/task_done_dates.csv".colorize(WarningColour)
+#   puts "ERROR: '#{e.exception.message}' when reading #{IO_DIR}/task_done_dates.csv".colorize(WarningColour)
 # end
 
 # ------------------------------------------------------------------------------------
@@ -246,16 +247,16 @@ $verbose = options[:verbose]
 # Done = actual log of the number completed per day
 
 begin
-  stats_table = CSV.parse(File.read(input_dir + '/task_stats.csv'), headers: true, converters: :all)
+  stats_table = CSV.parse(File.read(IO_DIR + '/task_stats.csv'), headers: true, converters: :all)
   puts "Read #{stats_table.size} items from task_stats.csv into stats_table (class #{stats_table.class})"
 rescue StandardError => e
-  puts "ERROR: '#{e.exception.message}' when reading #{input_dir}/task_stats.csv".colorize(WarningColour)
+  puts "ERROR: '#{e.exception.message}' when reading #{IO_DIR}/task_stats.csv".colorize(WarningColour)
 end
 begin
-  done_table = CSV.parse(File.read(input_dir + '/task_done_dates.csv'), headers: true, converters: :all)
+  done_table = CSV.parse(File.read(IO_DIR + '/task_done_dates.csv'), headers: true, converters: :all)
   puts "Read #{done_table.size} items from task_done_dates.csv into done_table  (class #{done_table.class})"
 rescue StandardError => e
-  puts "ERROR: '#{e.exception.message}' when reading #{input_dir}/task_done_dates.csv".colorize(WarningColour)
+  puts "ERROR: '#{e.exception.message}' when reading #{IO_DIR}/task_done_dates.csv".colorize(WarningColour)
 end
 start_date = TODAYS_DATE - NET_LOOKBACK_DAYS
 
@@ -322,39 +323,37 @@ puts 'ERROR: Hit problem when creating Net Tasks graph using gnuplot'.colorize(W
 #   date, tasks completed for that day in the week, ...
 #   date of next week, tasks completed for that day in the week, ...
 #   ...
-start_date = TODAYS_DATE - (DONE_PERIOD_WEEKS * 7)
-week_of_start_date = start_date.strftime('%W') # week starting Mondays. Days in Jan before Monday are in week 0.
-
 # Create new data structure, reusing data doneh hash from above
 done_grida = Array.new(DONE_PERIOD_WEEKS+2) { Array.new(8) {0} } # extra 2 weeks to allow for data not starting on a Monday
-w = 1
-d = start_date
-date_week_start = (d - d.strftime('%u').to_i + 1).strftime(DATE_OUT_FORMAT) # work out date at start of week of first data entry
-done_grida[w][0] = date_week_start
-while d < TODAYS_DATE
-  day_of_week = d.strftime('%u').to_i # Monday is 1, ...
+# populate first week specially with week of first data entry, as it might not fall on week start
+start_date = TODAYS_DATE - (DONE_PERIOD_WEEKS * 7)
+week_number = start_date.strftime('%W').to_i # week starting Mondays. Days in Jan before Monday are in week 0.
+week_counter = 1
+done_grida[week_counter][0] = week_number
+current_day = start_date
+while current_day < TODAYS_DATE
+  day_of_week = current_day.strftime('%u').to_i # Monday is 1, ...
   if day_of_week == 1
-    w += 1
-    date_week_start = d.strftime(DATE_OUT_FORMAT)
-    done_grida[w][0] = date_week_start
-    # TODO: update date string if it's the change of year
+    week_counter += 1
+    week_number = current_day.strftime('%W').to_i # don't just increment, as it might be a year boundary
+    done_grida[week_counter][0] = week_number
   end
-  data = doneh.fetch(d.to_s, [0, 0, 0]) # get data, defaulting to zeros
-  calc = data[0] + data[1] + data[2] # for now save sum of G+P+O tasks completed
-  done_grida[w][day_of_week] = calc
-  d += 1
+  data = doneh.fetch(current_day.to_s, [0, 0, 0]) # get data, defaulting to zeros
+  calc = data[0] + data[1] + data[2] # for now save sum of G+P+O tasks completed TODO: change in time
+  done_grida[week_counter][day_of_week] = calc
+  current_day += 1
 end
 
 # Now transpose the array so that it is wide not deep
 # done_grida.reverse!
 # puts done_grida
-done_grida[0] = ['Week commencing','Mon','Tues','Weds','Thurs','Fri','Sat','Sun']
+done_grida[0] = ['Week number','Mon','Tues','Weds','Thurs','Fri','Sat','Sun']
 done_grid_transposeda = done_grida.transpose
 
 # Write out new structure to CSV file
 begin
   # Use the CSV library to help make this (a bit) easier
-  puts "Writing #{w} lines to #{HEATMAP_FILENAME} ..."
+  puts "Writing #{week_counter} lines to #{HEATMAP_FILENAME} ..."
   CSV.open(HEATMAP_FILENAME, 'w') do |csv_file|
     done_grid_transposeda.each do |sa|
       row = sa
@@ -380,10 +379,10 @@ puts 'ERROR: Hit problem when creating graphs using gnuplot'.colorize(WarningCol
 # From a file: read and parse all at once  (info: https://www.rubyguides.com/2018/10/parse-csv-ruby/)
 # (There are other 'Date' and 'DateTime' converters.)
 begin
-  gpo_table = CSV.parse(File.read(input_dir + '/task_stats.csv'), headers: true, converters: :all)
+  gpo_table = CSV.parse(File.read(IO_DIR + '/task_stats.csv'), headers: true, converters: :all)
   puts "Read #{gpo_table.size} items from task_stats.csv into gpo_table"
 rescue StandardError => e
-  puts "ERROR: '#{e.exception.message}' when reading #{input_dir}/task_stats.csv".colorize(WarningColour)
+  puts "ERROR: '#{e.exception.message}' when reading #{IO_DIR}/task_stats.csv".colorize(WarningColour)
 end
 
 gp_commands = 'open_tasks.gp'
