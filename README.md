@@ -21,14 +21,14 @@ Run with `npStats -h` to see the command line switches available.
 ## npTagStats
 `npTagStats` script gives summary counts of #hashtags and @mentions in NotePlan's daily calendar files:
 - for #hashtags it simply counts up any it finds from a configurable list, for example `#gym` or `#readbook` 
-- the @mentions counted are of the form `@mention(number)`, e.g. `@work(8)` or `@work(10)`, where it will show a table of counts of the different @work parameters. This allows simple tracking of numeric items over time, for example hours worked. Again, this list is configurable (see below).
+- the @mentions counted are of the form `@mention(number)`, e.g. `@work(8)` or `@fruitveg(5)`, this allows simple tracking of numeric items over time, for example hours worked, or number of fruit'n'veg portions eaten. Again, this list is configurable (see below).
 
 There are 2 ways of running this:
 
-1. with a passed year, it will just look in the files for that year.
-2. with no arguments, it will just count the current year, and distinguish dates in the future (where relevant)
+1. with a passed year (e.g. `npStats 2020'), it will just look in the files for that year
+2. with no arguments (`npStats'), it will just count the current year, and distinguish dates in the future (where relevant)
 
-It writes output to screen and writes to a `<year>_tag_stats.csv` file, unless the `--nofile` command line option is given. (The location depends which NotePlan storage type you use: it goes in the (new) top-level 'Summaries' directory for iCloud Drive or Dropbox, or the user's home directory for CloudKit.)
+It writes output to screen and writes to a `<year>_tag_stats.csv` file, unless the `--nofile` command line option is given. (The location depends which NotePlan storage type you use: it goes in the (new) top-level 'Summaries' directory in NotePlan for iCloud Drive or Dropbox, or the user's home directory for CloudKit.)
 
 ## Options
 Run either script with `--help` to see the command line switches available:
@@ -36,13 +36,11 @@ Run either script with `--help` to see the command line switches available:
 - `-v`/`--verbose`: show information as I work
 
 
-## Configuration
-Set the following variables in both scripts:
-- `STORAGE_TYPE`: select whether you're using `iCloud` for storage or `CloudKit` (the default  in NotePlan v3) or `Drobpox`. If you're not sure, see NotePlan's `Sync Settings` screen.
-- `USERNAME`: the username of the Dropbox/iCloud account to use
+## Installation & Configuration
+Check you have installed the `colorize` and `optparse` gems (> gem install colorize optparse).
 
-For the `npTagStats` script also configure:
+Add the .rb script(s) to your path, and then set them as executable (`chmod 755 np*.rb`)
+
+For the `npTagStats` script configure:
 - `TAGS_TO_COUNT`: array of hashtags to count, e.g. ["#holiday", "#halfholiday", "#bankholiday", "#dayoff"]
 - `MENTIONS_TO_COUNT`: array of mentions to count, e.g. ["@work", "@sleep"]
-
-Check you have installed the `colorize` and `optparse` gems (> gem install colorize optparse).

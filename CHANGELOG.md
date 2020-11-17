@@ -1,6 +1,9 @@
 # CHANGELOG
 
 ## for npStats
+### v1.5.1, 17.11.2020
+- [Improve] Automatic configuration of NotePlan storage (CloudKit > iCloudDrive > Dropbox)
+
 ### v1.5.0, 30.10.2020
 - [Change] Now default to using the sandbox location for CloudKit storage (change from NotePlan 3.0.15 beta)
 

@@ -1,7 +1,7 @@
 #!/usr/bin/ruby
 #-------------------------------------------------------------------------------
 # NotePlan Task Stats Summariser
-# (c) JGC, v1.5.0, 30.10.2020
+# (c) JGC, v1.5.1, 17.11.2020
 #-------------------------------------------------------------------------------
 # Script to give stats on various tags in NotePlan's Notes and Daily files.
 #
@@ -20,7 +20,7 @@
 # For more information please see the GitHub repository:
 #   https://github.com/jgclark/NotePlan-stats/
 #-------------------------------------------------------------------------------
-VERSION = '1.5.0'.freeze
+VERSION = '1.5.1'.freeze
 
 require 'date'
 require 'time'
@@ -31,26 +31,26 @@ require 'optparse'
 # User-settable constants
 DATE_FORMAT = '%d.%m.%y'.freeze
 DATE_TIME_FORMAT = '%d %b %Y %H:%M'.freeze
-USERNAME = 'jonathan'.freeze
 
-# Other Constant Definitions
-TODAYS_DATE = Date.today # can't work out why this needs to be a 'constant' to work -- something about visibility, I suppose
-DATE_TODAY_YYYYMMDD = TODAYS_DATE.strftime('%Y%m%d')
-STORAGE_TYPE = 'CloudKit'.freeze # or Dropbox or CloudKit or iCloudDrive
-NP_BASE_DIR = if STORAGE_TYPE == 'Dropbox'
-                "/Users/#{USERNAME}/Dropbox/Apps/NotePlan/Documents" # for Dropbox storage
-              elsif STORAGE_TYPE == 'iCloudDrive'
-                "/Users/#{USERNAME}/Library/Mobile Documents/iCloud~co~noteplan~NotePlan/Documents"
-              else
-                "/Users/#{USERNAME}/Library/Containers/co.noteplan.NotePlan3/Data/Library/Application Support/co.noteplan.NotePlan3" # for CloudKit storage (default)
-              end
+
+# Constants
+USERNAME = ENV['LOGNAME'] # pull username from environment
+USER_DIR = ENV['HOME'] # pull home directory from environment
+DROPBOX_DIR = "#{USER_DIR}/Dropbox/Apps/NotePlan/Documents".freeze
+ICLOUDDRIVE_DIR = "#{USER_DIR}/Library/Mobile Documents/iCloud~co~noteplan~NotePlan/Documents".freeze
+CLOUDKIT_DIR = "#{USER_DIR}/Library/Containers/co.noteplan.NotePlan3/Data/Library/Application Support/co.noteplan.NotePlan3".freeze
+NP_BASE_DIR = DROPBOX_DIR if Dir.exist?(DROPBOX_DIR) && Dir[File.join(DROPBOX_DIR, '**', '*')].count { |file| File.file?(file) } > 1
+NP_BASE_DIR = ICLOUDDRIVE_DIR if Dir.exist?(ICLOUDDRIVE_DIR) && Dir[File.join(ICLOUDDRIVE_DIR, '**', '*')].count { |file| File.file?(file) } > 1
+NP_BASE_DIR = CLOUDKIT_DIR if Dir.exist?(CLOUDKIT_DIR) && Dir[File.join(CLOUDKIT_DIR, '**', '*')].count { |file| File.file?(file) } > 1
 NP_CALENDAR_DIR = "#{NP_BASE_DIR}/Calendar".freeze
 NP_NOTE_DIR = "#{NP_BASE_DIR}/Notes".freeze
-OUTPUT_DIR = if STORAGE_TYPE == 'CloudKit'
+OUTPUT_DIR = if Dir.exist?(CLOUDKIT_DIR) && Dir[File.join(CLOUDKIT_DIR, '**', '*')].count { |file| File.file?(file) } > 1
                "/Users/#{USERNAME}/Dropbox/NPSummaries" # save in user's home Dropbox directory as it won't be sync'd in a CloudKit directory
              else
                "#{NP_BASE_DIR}/Summaries".freeze # but otherwise store in Summaries/ directory
              end
+TODAYS_DATE = Date.today # can't work out why this needs to be a 'constant' to work -- something about visibility, I suppose
+DATE_TODAY_YYYYMMDD = TODAYS_DATE.strftime('%Y%m%d')
 
 # Other variables that need to be global
 $cal_done_dates = Hash.new(0) # Hash of dates, with new items defaulting to zero
@@ -305,7 +305,7 @@ if options[:no_calendar]
 else
   puts "Creating stats at #{time_now_format}:"
 end
-puts "  Writing output files to #{OUTPUT_DIR}/" unless options[:no_calendar]
+puts "  Writing output files to #{OUTPUT_DIR}/" unless options[:no_file]
 
 #=======================================================================================
 # Note stats
