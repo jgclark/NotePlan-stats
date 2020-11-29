@@ -43,6 +43,7 @@
 # plot 'test.dat' using 2:xtic(1) title 'Col1', '' using 3 title 'Col2', '' using 4 title 'Col3'
 # With this command, the xtic labels will stay the same, and the first bar will no longer be there. Note that the colors for the data will change with this command, since the first thing plotted will be red, the second green and the third blue.
 #-------------------------------------------------------------------------------
+# - v0.7, 29.11.2020 - adds graph of net tasks as a heatmap
 # - v0.6.1, 14.11.2020 - code cleanup
 # - v0.6, 13.11.2020 - adds graph of done tasks as a heatmap
 # - v0.5, 24.10.2020 - change file paths for input/output data files to ~/Dropbox/NPSummaries
@@ -51,7 +52,7 @@
 # - v0.2.2, 23.8.2020 - change tasks completed per day graph to differentiate between Goal/Project/Other
 # - v0.2.1, 23.8.2020 - add graph for number of tasks completed per day over last 6 months (using local gnuplot)
 # - v0.2, 11.7.2020 - produces graphs of number of open tasks over time for Goals/Projects/Other (using Google Charts API)
-VERSION = '0.6.1'.freeze
+VERSION = '0.7.0'.freeze
 
 require 'date'
 require 'time'
@@ -81,7 +82,8 @@ TODAYS_DATE = Date.today # can't work out why this needs to be a 'constant' to w
 DATE_TODAY_YYYYMMDD = TODAYS_DATE.strftime('%Y%m%d')
 GP_SCRIPTS_DIR = '/Users/jonathan/GitHub/NotePlan-stats'.freeze
 NET_FILENAME = "#{IO_DIR}/tasks_net.csv".freeze
-HEATMAP_FILENAME = "#{IO_DIR}/done_tasks_matrix.csv".freeze
+NET_HEATMAP_FILENAME = "#{IO_DIR}/net_tasks_matrix.csv".freeze
+DONE_HEATMAP_FILENAME = "#{IO_DIR}/done_tasks_matrix.csv".freeze
 NET_LOOKBACK_DAYS = 26*7 # 26 weeks
 DONE_PERIOD_WEEKS = 26 # 26 weeks = 6 months
 DATE_OUT_FORMAT = '%d %b' # when writing new CSVs. Ignoring %Y now.
@@ -242,7 +244,7 @@ $verbose = options[:verbose]
 # differentiating goal/projects/other.
 # This might be possible in gnuplot, but its not straightforward, so instead will
 # pre-compute the data and send to a file. Structure:
-#   date, added G, added P, added O, done G, done P, done O, total net G, total net P, total net O
+#   date, added G, added P, added O, done G, done P, done O, cumulative net G, cumulative net P, cumulative net O
 # Added = all the task_stats categories for one day minus the previous day
 # Done = actual log of the number completed per day
 
@@ -260,7 +262,7 @@ rescue StandardError => e
 end
 start_date = TODAYS_DATE - NET_LOOKBACK_DAYS
 
-# TODO: ideally only use latest line from CSV if there are multiples for that day
+# TODO: ideally only use latest entries from CSV if there are multiple entries for a day
 
 # Create hash of added tasks (g/p/o) for each day
 addedh = Hash.new { Array.new(3, 0) }
@@ -290,14 +292,14 @@ end
 summarya = Array.new(NET_LOOKBACK_DAYS, 0)
 i = 0
 d = start_date + 1
-tag = tap = tao = 0
+rtag = rtap = rtao = 0
 while i < NET_LOOKBACK_DAYS
   aa = addedh.fetch(d.to_s, [0, 0, 0]) # lookup from addedh, defaulting to 0
   da = doneh.fetch(d.to_s, [0, 0, 0])  # lookup from doneh, defaulting to 0
-  tag += da[0] - aa[0] # running total of net G
-  tap += da[1] - aa[1] # running total of net P
-  tao += da[2] - aa[2] # running total of net O
-  summarya[i] = [d.to_s, aa[0], aa[1], aa[2], da[0], da[1], da[2], tag, tap, tao]
+  rtag += da[0] - aa[0] # running total of net G
+  rtap += da[1] - aa[1] # running total of net P
+  rtao += da[2] - aa[2] # running total of net O
+  summarya[i] = [d.to_s, aa[0], aa[1], aa[2], da[0], da[1], da[2], rtag, rtap, rtao]
   i += 1
   d += 1
 end
@@ -315,6 +317,71 @@ gp_call_result = system("/usr/local/bin/gnuplot '#{gp_commands}'")
 puts 'ERROR: Hit problem when creating Net Tasks graph using gnuplot'.colorize(WarningColour) unless gp_call_result
 
 # -----------------------------------------------------------------------------------
+# Do heatmap graphs of net tasks
+# -----------------------------------------------------------------------------------
+
+# Reuse data worked out in last step, and write out in a new file structure:
+#   W/C, Mon, Tues, Weds ...
+#   date, tasks completed for that day in the week, ...
+#   date of next week, tasks completed for that day in the week, ...
+#   ...
+# Create new data structure, reusing data doneh hash from above
+# FIXME: starting with a ridiculous value: but NET_FILENAME data file OK
+net_grida = Array.new(DONE_PERIOD_WEEKS+2) { Array.new(8) {0} } # extra 2 weeks to allow for data not starting on a Monday
+# populate first week specially with week of first data entry, as it might not fall on week start
+start_date = TODAYS_DATE - (DONE_PERIOD_WEEKS * 7) + 1 # +1 to get past first day which will always be odd as doing net
+week_number = start_date.strftime('%W').to_i # week starting Mondays. Days in Jan before Monday are in week 0.
+week_counter = 1
+net_grida[week_counter][0] = start_date.strftime(DATE_OUT_FORMAT)
+current_day = start_date
+while current_day < TODAYS_DATE
+  day_of_week = current_day.strftime('%u').to_i # Monday is 1, ...
+  if day_of_week == 1
+    week_counter += 1
+    week_number = current_day.strftime('%W').to_i # don't just increment, as it might be a year boundary
+    # create string of date at start of the week to use as X label
+    if week_number > 1
+      net_grida[week_counter][0] = current_day.strftime(DATE_OUT_FORMAT)
+    else 
+      # But if week 1 just show year instead (should never find week 0?)
+      net_grida[week_counter][0] = current_day.strftime("%Y") 
+    end
+  end
+  data_done = doneh.fetch(current_day.to_s, [0, 0, 0]) # get data, defaulting to zeros
+  data_added = addedh.fetch(current_day.to_s, [0, 0, 0]) # get data, defaulting to zeros
+
+  calc = (data_done[0] + data_done[1] + data_done[2]) - (data_added[0] + data_added[1] + data_added[2]) # all done - all added
+puts " #{current_day} / #{week_number}: #{calc} from #{data_done}  #{data_added}"
+  net_grida[week_counter][day_of_week] = calc
+  current_day += 1
+end
+
+# Now transpose the array so that it is wide not deep
+# net_grida.reverse!
+# puts net_grida
+net_grida[0] = ['Week start','Mon','Tues','Weds','Thurs','Fri','Sat','Sun']
+net_grid_transposeda = net_grida.transpose
+
+# Write out new structure to CSV file
+begin
+  # Use the CSV library to help make this (a bit) easier
+  puts "Writing #{week_counter} lines to #{NET_HEATMAP_FILENAME} ..."
+  CSV.open(NET_HEATMAP_FILENAME, 'w') do |csv_file|
+    net_grid_transposeda.each do |sa|
+      row = sa
+      csv_file << row
+    end
+  end
+rescue StandardError => e
+  puts "ERROR: '#{e.exception.message}' when writing #{NET_HEATMAP_FILENAME}".colorize(WarningColour)
+end
+
+gp_commands = 'net_tasks_heatmap.gp'
+gp_call_result = system("/usr/local/bin/gnuplot '#{gp_commands}'")
+puts 'ERROR: Hit problem when creating graphs using gnuplot'.colorize(WarningColour) unless gp_call_result
+
+
+# -----------------------------------------------------------------------------------
 # Do heatmap graphs of completed tasks
 # -----------------------------------------------------------------------------------
 
@@ -329,14 +396,20 @@ done_grida = Array.new(DONE_PERIOD_WEEKS+2) { Array.new(8) {0} } # extra 2 weeks
 start_date = TODAYS_DATE - (DONE_PERIOD_WEEKS * 7)
 week_number = start_date.strftime('%W').to_i # week starting Mondays. Days in Jan before Monday are in week 0.
 week_counter = 1
-done_grida[week_counter][0] = week_number
+done_grida[week_counter][0] = start_date.strftime(DATE_OUT_FORMAT)
 current_day = start_date
 while current_day < TODAYS_DATE
   day_of_week = current_day.strftime('%u').to_i # Monday is 1, ...
   if day_of_week == 1
     week_counter += 1
     week_number = current_day.strftime('%W').to_i # don't just increment, as it might be a year boundary
-    done_grida[week_counter][0] = week_number
+    # create string of date at start of the week to use as X label
+    if week_number > 1
+      done_grida[week_counter][0] = current_day.strftime(DATE_OUT_FORMAT)
+    else 
+      # But if week 1 just show year instead (should never find week 0?)
+      done_grida[week_counter][0] = current_day.strftime("%Y") 
+    end
   end
   data = doneh.fetch(current_day.to_s, [0, 0, 0]) # get data, defaulting to zeros
   calc = data[0] + data[1] + data[2] # for now save sum of G+P+O tasks completed TODO: change in time
@@ -353,15 +426,15 @@ done_grid_transposeda = done_grida.transpose
 # Write out new structure to CSV file
 begin
   # Use the CSV library to help make this (a bit) easier
-  puts "Writing #{week_counter} lines to #{HEATMAP_FILENAME} ..."
-  CSV.open(HEATMAP_FILENAME, 'w') do |csv_file|
+  puts "Writing #{week_counter} lines to #{DONE_HEATMAP_FILENAME} ..."
+  CSV.open(DONE_HEATMAP_FILENAME, 'w') do |csv_file|
     done_grid_transposeda.each do |sa|
       row = sa
       csv_file << row
     end
   end
 rescue StandardError => e
-  puts "ERROR: '#{e.exception.message}' when writing #{HEATMAP_FILENAME}".colorize(WarningColour)
+  puts "ERROR: '#{e.exception.message}' when writing #{DONE_HEATMAP_FILENAME}".colorize(WarningColour)
 end
 
 gp_commands = 'done_tasks_heatmap.gp'
