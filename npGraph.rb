@@ -72,8 +72,7 @@ ICLOUDDRIVE_DIR = "#{USER_DIR}/Library/Mobile Documents/iCloud~co~noteplan~NoteP
 CLOUDKIT_DIR = "#{USER_DIR}/Library/Containers/co.noteplan.NotePlan3/Data/Library/Application Support/co.noteplan.NotePlan3".freeze
 IO_DIR = "#{DROPBOX_DIR}/Summaries" if Dir.exist?(DROPBOX_DIR) && Dir[File.join(DROPBOX_DIR, '**', '*')].count { |file| File.file?(file) } > 1
 IO_DIR = "#{ICLOUDDRIVE_DIR}/Summaries" if Dir.exist?(ICLOUDDRIVE_DIR) && Dir[File.join(ICLOUDDRIVE_DIR, '**', '*')].count { |file| File.file?(file) } > 1
-IO_DIR = "#{USER_DIR}/Dropbox/NPSummaries" if Dir.exist?(CLOUDKIT_DIR) && Dir[File.join(CLOUDKIT_DIR, '**', '*')].count { |file| File.file?(file) } > 1
-  # NB: not the usual CloudKit directory, as non-NotePlan folders won't sync from it.
+IO_DIR = "#{USER_DIR}/Dropbox/NPSummaries" if Dir.exist?(CLOUDKIT_DIR) && Dir[File.join(CLOUDKIT_DIR, '**', '*')].count { |file| File.file?(file) } > 1 # NB: not the usual CloudKit directory, as non-NotePlan folders won't sync from it.
 
 # User-settable Constant Definitions
 DATE_FORMAT = '%d.%m.%y'.freeze
@@ -84,7 +83,7 @@ GP_SCRIPTS_DIR = '/Users/jonathan/GitHub/NotePlan-stats'.freeze
 NET_FILENAME = "#{IO_DIR}/tasks_net.csv".freeze
 NET_HEATMAP_FILENAME = "#{IO_DIR}/net_tasks_matrix.csv".freeze
 DONE_HEATMAP_FILENAME = "#{IO_DIR}/done_tasks_matrix.csv".freeze
-NET_LOOKBACK_DAYS = 26*7 # 26 weeks
+NET_LOOKBACK_DAYS = 26 * 7 # 26 weeks
 DONE_PERIOD_WEEKS = 26 # 26 weeks = 6 months
 DATE_OUT_FORMAT = '%d %b' # when writing new CSVs. Ignoring %Y now.
 
@@ -147,7 +146,6 @@ $verbose = options[:verbose]
 # two = [5,6,6,7]
 # three = [3,4,4,5]
 # puts subtract(one, add(two,three))
-
 
 # -----------------------------------------------------------------------------------
 # Do graphs of when tasks were completed
@@ -326,8 +324,7 @@ puts 'ERROR: Hit problem when creating Net Tasks graph using gnuplot'.colorize(W
 #   date of next week, tasks completed for that day in the week, ...
 #   ...
 # Create new data structure, reusing data doneh hash from above
-# FIXME: starting with a ridiculous value: but NET_FILENAME data file OK
-net_grida = Array.new(DONE_PERIOD_WEEKS+2) { Array.new(8) {0} } # extra 2 weeks to allow for data not starting on a Monday
+net_grida = Array.new(DONE_PERIOD_WEEKS + 2) { Array.new(8) {0} } # extra 2 weeks to allow for data not starting on a Monday
 # populate first week specially with week of first data entry, as it might not fall on week start
 start_date = TODAYS_DATE - (DONE_PERIOD_WEEKS * 7) + 1 # +1 to get past first day which will always be odd as doing net
 week_number = start_date.strftime('%W').to_i # week starting Mondays. Days in Jan before Monday are in week 0.
@@ -340,18 +337,16 @@ while current_day < TODAYS_DATE
     week_counter += 1
     week_number = current_day.strftime('%W').to_i # don't just increment, as it might be a year boundary
     # create string of date at start of the week to use as X label
-    if week_number > 1
-      net_grida[week_counter][0] = current_day.strftime(DATE_OUT_FORMAT)
-    else 
-      # But if week 1 just show year instead (should never find week 0?)
-      net_grida[week_counter][0] = current_day.strftime("%Y") 
-    end
+    net_grida[week_counter][0] = if week_number > 1
+                                   current_day.strftime(DATE_OUT_FORMAT)
+                                 else # But if week 1 just show year instead (should never find week 0?)
+                                   current_day.strftime('%Y')
+                                 end
   end
   data_done = doneh.fetch(current_day.to_s, [0, 0, 0]) # get data, defaulting to zeros
   data_added = addedh.fetch(current_day.to_s, [0, 0, 0]) # get data, defaulting to zeros
 
   calc = (data_done[0] + data_done[1] + data_done[2]) - (data_added[0] + data_added[1] + data_added[2]) # all done - all added
-puts " #{current_day} / #{week_number}: #{calc} from #{data_done}  #{data_added}"
   net_grida[week_counter][day_of_week] = calc
   current_day += 1
 end
@@ -408,7 +403,7 @@ while current_day < TODAYS_DATE
       done_grida[week_counter][0] = current_day.strftime(DATE_OUT_FORMAT)
     else 
       # But if week 1 just show year instead (should never find week 0?)
-      done_grida[week_counter][0] = current_day.strftime("%Y") 
+      done_grida[week_counter][0] = current_day.strftime('%Y')
     end
   end
   data = doneh.fetch(current_day.to_s, [0, 0, 0]) # get data, defaulting to zeros
