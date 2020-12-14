@@ -1,7 +1,7 @@
 #!/usr/bin/ruby
 #-------------------------------------------------------------------------------
 # NotePlan Tag Stats Summariser
-# Jonathan Clark, v1.5.1, 14.11.2020
+# Jonathan Clark, v1.6.0, 14.12.2020
 #-------------------------------------------------------------------------------
 # Script to give stats on various tags in NotePlan's daily calendar files.
 #
@@ -24,25 +24,17 @@
 # For more information, including installation, please see the GitHub repository:
 #   https://github.com/jgclark/NotePlan-stats/
 #-------------------------------------------------------------------------------
-VERSION = '1.5.1'.freeze
+VERSION = '1.6.0'.freeze
 
 require 'date'
 require 'time'
 require 'etc' # for login lookup, though currently not used
 require 'colorize' # for coloured output using https://github.com/fazibear/colorize
 require 'optparse'
-
-# Tags to count up.
-TAGS_TO_COUNT = ['#holiday', '#halfholiday', '#bankholiday', '#dayoff', '#sundayoff',
-                 '#friends', '#family', '#bbq', '#readtheology', '#finishedbook', '#gardened', '#nap',
-                 '#preach', '#wedding', '#funeral', '#baptism', '#dedication', '#thanksgiving',
-                 '#welcome', '#homevisit', '#conference', '#training', '#retreat', '#mentor', '#mentee', '#call', '#greek',
-                 '#parkrun', '#dogwalk', '#dogrun', '#run',
-                 '#leadaaw', '#leadmw', '#leadmp', '#leadhc', '#recordvideo', '#editvideo', '#article',
-                 '#firekiln', '#glassmaking', '#tiptrip'].sort # simple array of strings
-MENTIONS_TO_COUNT = ['@work', '@written', '@sleep', '@water'].freeze
+require 'json'
 
 # Other User-settable Constant Definitions
+JSON_SETTINGS_FILE = ENV['HOME'] + '/npTagStats.json'.freeze
 DATE_FORMAT = '%d.%m.%y'.freeze
 DATE_TIME_FORMAT = '%e %b %Y %H:%M (week %V, day %j)'.freeze
 
@@ -116,11 +108,11 @@ class NPCalendar
 
     # extract all #hashtags from lines and store in an array
     @tags = lines.scan(%r{#[\w/]+})
-    puts "    Found tags: #{@tags}" if $verbose > 1 && !@tags.empty?
+    puts "    Found tags: #{@tags}" if !@tags.empty? && $verbose > 1
 
     # extract all @mentions(something) from lines and store in an array
     @mentions = lines.scan(%r{@[\w/]+\(\d+?\)}).join(' ')
-    puts "    Found mentions: #{@mentions}" if $verbose > 1 && !@mentions.empty?
+    puts "    Found mentions: #{@mentions}" if !@mentions.empty? && $verbose > 1
   rescue StandardError => e
     puts "ERROR: Hit #{e.exception.message} when initialising NPCalendar from #{@filename}!".colorize(WarningColour)
   end
@@ -130,7 +122,9 @@ end
 # Main logic
 #=======================================================================================
 
+#-----------------------------------------------------------------------
 # Setup program options
+#-----------------------------------------------------------------------
 options = {}
 opt_parser = OptionParser.new do |opts|
   opts.banner = 'Usage: npTagStats.rb [options]'
@@ -158,12 +152,36 @@ end
 opt_parser.parse! # parse out options, leaving file patterns to process
 $verbose = options[:verbose]
 
+#-----------------------------------------------------------------------
+# Initialisation
+#-----------------------------------------------------------------------
 time_now = Time.now
 time_now_fmt = time_now.strftime(DATE_TIME_FORMAT)
 this_year_str = time_now.strftime('%Y')
 this_week_num = time_now.strftime('%W').to_i
 n = 0 # number of notes/calendar entries to work on
-calFiles = [] # to hold all relevant calendar objects
+cal_files = [] # to hold all relevant calendar objects
+
+# Read JSON settings from a file
+begin
+  f = File.open(JSON_SETTINGS_FILE)
+  json = f.read
+  f.close
+  parsed = JSON.parse(json) # returns a hash
+  puts parsed if $verbose > 1
+  TAGS_TO_COUNT = parsed['tags_to_count'].sort
+  puts TAGS_TO_COUNT if $verbose > 0
+  MENTIONS_TO_COUNT = parsed['mentions_to_count'].sort
+  puts MENTIONS_TO_COUNT if $verbose > 0
+rescue JSON::ParserError => e
+  puts "ERROR: Hit #{e.exception.message} when reading JSON settings file.".colorize(WarningColour)
+  exit
+end
+
+if options[:all]
+  # TODO: complete this, looking over each relevant file
+  # will need to turn this option on as well above
+end
 
 # Work out which year's calendar files to be summarising
 the_year_str = ARGV[0] || this_year_str
@@ -175,27 +193,20 @@ begin
     # fsize = File.size?(this_file) || 0
     # puts "#{this_file} size #{fsize}" if $verbose.positive?
     next unless this_file =~ /^[^@]/ # as can't get file glob including [^@] to work
+
     # ignore this file if it's empty
     if File.zero?(this_file)
       puts "  NB: file #{this_file} is empty".colorize(WarningColour)
       next
     end
 
-    calFiles[n] = NPCalendar.new(this_file, n)
+    cal_files[n] = NPCalendar.new(this_file, n)
     n += 1
   end
   print " ... analysed #{n} found notes.\n\n"
 rescue StandardError => e
   puts "ERROR: Hit #{e.exception.message} when reading calendar files.".colorize(WarningColour)
   exit
-end
-
-#-----------------------------------------------------------------------
-# Initialisation
-#-----------------------------------------------------------------------
-if options[:all]
-  # TODO: complete this, looking over each relevant file
-  # will need to turn this option on as well above
 end
 
 # if we have some notes to work on ...
@@ -209,7 +220,7 @@ if n.positive?
   # Helpful ruby hash summary: https://www.tutorialspoint.com/ruby/ruby_hashes.htm
   # Nested hash examples: http://www.korenlc.com/nested-arrays-hashes-loops-in-ruby/
   param_counts = Hash.new(0)
-  mention_week_totals = Array.new(53) { Array.new(2, 0) }
+  mention_week_totals = Array.new(53) { Array.new(MENTIONS_TO_COUNT.count, 0) }
   mi = 0
   MENTIONS_TO_COUNT.each do |m|
     # create empty nested hashes for each @mention
@@ -221,20 +232,21 @@ if n.positive?
   #-----------------------------------------------------------------------
   days = futureDays = 0
   # Iterate over all Calendar items
-  calFiles.each do |cal|
-    # puts "  Scanning file #{cal.filename}: #{cal.tags}"
+  cal_files.each do |cal|
+    puts "  Scanning file #{cal.filename}:" if $verbose > 0
     i = 0
 
     # Count #tags of interest
     TAGS_TO_COUNT.each do |t|
       cal.tags.each do |c|
-        if c =~ /#{t}/i # case-insensitive search
-          if cal.is_future
-            tag_counts_future[i] = tag_counts_future[i] + 1
-          else
-            tag_counts[i] = tag_counts[i] + 1
-          end
+        next if c !~ /#{t}/i # case-insensitive search
+
+        if cal.is_future
+          tag_counts_future[i] = tag_counts_future[i] + 1
+        else
+          tag_counts[i] = tag_counts[i] + 1
         end
+        puts "    Found #{t}; counts now #{tag_counts[i]} #{tag_counts_future[i]}" if $verbose > 1
       end
       i += 1
     end
@@ -243,17 +255,16 @@ if n.positive?
     # and also make a note on which week they were found
     mi = 0 # counter for which @mention we're looking for
     MENTIONS_TO_COUNT.each do |m|
-
       # for each @mention(n) get the value of n
       cal.mentions.scan(/#{m}\((\d+?)\)/i).each do |ns| # case-insensitive scan
         ni = ns.join.to_i # turn string element from array into integer
         pc = param_counts[m].fetch(ni, 0) # get current value, or if doesn't exist, default to 0
-        puts "   #{cal.filename} has #{m}(#{ns}); already seen #{pc} of them" if $verbose > 1
+        puts "    #{cal.filename} has #{m}(#{ni}); already seen #{pc} of them" if $verbose > 1
         param_counts[m][ni] = pc + 1
-        puts "     #{cal.week_num} #{mi} #{ni} = #{mention_week_totals[cal.week_num][mi]}" if $verbose > 1
+        puts "      #{cal.week_num} #{mi} #{ni} = #{mention_week_totals[cal.week_num][mi]}" if $verbose > 1
         mention_week_totals[cal.week_num][mi] += ni
       end
-      mi += 1 
+      mi += 1
     end
 
     # also track number of future vs past days
@@ -349,8 +360,8 @@ if n.positive?
   # Calc and write out @mention totals
   m_head_screen = "\nWeek#  W/C       "
   m_head_file = "\nWeek#,W/C"
-  m_sum = Array.new(MENTIONS_TO_COUNT.count,0)
-  m_sum_screen = "            Total:"
+  m_sum = Array.new(MENTIONS_TO_COUNT.count, 0)
+  m_sum_screen = '            Total:'
   m_sum_file = ',Total'
   mi = 0
   mc = 0
@@ -365,7 +376,7 @@ if n.positive?
   while w <= this_week_num
     wp = "#{this_year_str} #{w}"
     wc = Date.strptime(wp, '%Y %W').strftime('%-d.%-m.%Y') # week commencing
-    outs = sprintf("%2d     %-10s  ", w, wc).to_s
+    outs = format('%2d     %-10s  ', w, wc).to_s
     outf = "#{w},#{wc}"
     mi = 0
     mc = 0
@@ -377,7 +388,7 @@ if n.positive?
       outf += ",#{mwt}"
       mi += 1
     end
-    
+
     # write this week's totals, if there if any are non-zero
     if mc.positive?
       puts outs

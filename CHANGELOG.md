@@ -53,6 +53,9 @@
 Initial load into this GitHub project.
 
 ## for npTagStats
+### v1.6.0, 14.12.2020
+- [Change] Now specify the `tags_to_count` and `mentions_to_count` through a separate `~/npTagStats.json' file
+
 ### v1.5.1, 14.10.2020
 - [Fix] Multiple #tags on the same line were only being counted once. Fixed.
 - [Improve] Add Total and Average to @mention counts

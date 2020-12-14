@@ -31,16 +31,23 @@ There are 2 ways of running this:
 It writes output to screen and writes to a `<year>_tag_stats.csv` file, unless the `--nofile` command line option is given. (The location depends which NotePlan storage type you use: it goes in the (new) top-level 'Summaries' directory in NotePlan for iCloud Drive or Dropbox, or the user's home directory for CloudKit.)
 
 ## Options
-Run either script with `--help` to see the command line switches available:
+Run either script with `-h` or `--help` to see the command line switches available:
 - `-n`/`--nofile`: do not write summary to file
 - `-v`/`--verbose`: show information as I work
-
 
 ## Installation & Configuration
 Check you have installed the `colorize` and `optparse` gems (> gem install colorize optparse).
 
 Add the .rb script(s) to your path, and then set them as executable (`chmod 755 np*.rb`)
 
-For the `npTagStats` script configure:
-- `TAGS_TO_COUNT`: array of hashtags to count, e.g. ["#holiday", "#halfholiday", "#bankholiday", "#dayoff"]
-- `MENTIONS_TO_COUNT`: array of mentions to count, e.g. ["@work", "@sleep"]
+For the `npTagStats` script configure a separate `npTagStats.json` file in your home directory, with the following two arrays:
+- `tags_to_count`: array of hashtags to count, e.g. ["#holiday", "#halfholiday", "#bankholiday", "#dayoff"]
+- `mentions_to_count`: array of mentions to count, e.g. ["@work", "@sleep"]
+
+For example the .json file for these examples would be:
+```
+{
+  "tags_to_count": ["#holiday", "#halfholiday", "#bankholiday", "#dayoff"],
+  "mentions_to_count": ["@work", "@sleep"]
+}
+```
