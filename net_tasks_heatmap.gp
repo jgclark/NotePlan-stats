@@ -50,7 +50,7 @@ set xtics out nomirror
 stats [*:*][*:*] DATAFILE using 2 skip 1 nooutput  # get the number of columns, skipping first one
 MaxCol = STATS_columns
 Nxtic = 4   # variable to show every Nth x label
-Noffset = 1 # variable to skip to the Nth x label to start displaying
+Noffset = 2 # variable to skip to the Nth x label to start displaying
 unset key
 set title sprintf("Net tasks completed (%d weeks to %s)", MaxCol-1, todays_date) font ",12"
 

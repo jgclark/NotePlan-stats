@@ -331,7 +331,7 @@ week_number = start_date.strftime('%W').to_i # week starting Mondays. Days in Ja
 week_counter = 1
 net_grida[week_counter][0] = start_date.strftime(DATE_OUT_FORMAT)
 current_day = start_date
-while current_day < TODAYS_DATE
+while current_day <= TODAYS_DATE
   day_of_week = current_day.strftime('%u').to_i # Monday is 1, ...
   if day_of_week == 1
     week_counter += 1
@@ -342,6 +342,7 @@ while current_day < TODAYS_DATE
                                  else # But if week 1 just show year instead (should never find week 0?)
                                    current_day.strftime('%Y')
                                  end
+    # puts "  Collating data for w/c #{current_day} #{week_counter}"
   end
   data_done = doneh.fetch(current_day.to_s, [0, 0, 0]) # get data, defaulting to zeros
   data_added = addedh.fetch(current_day.to_s, [0, 0, 0]) # get data, defaulting to zeros
@@ -393,18 +394,18 @@ week_number = start_date.strftime('%W').to_i # week starting Mondays. Days in Ja
 week_counter = 1
 done_grida[week_counter][0] = start_date.strftime(DATE_OUT_FORMAT)
 current_day = start_date
-while current_day < TODAYS_DATE
+while current_day <= TODAYS_DATE
   day_of_week = current_day.strftime('%u').to_i # Monday is 1, ...
   if day_of_week == 1
     week_counter += 1
     week_number = current_day.strftime('%W').to_i # don't just increment, as it might be a year boundary
     # create string of date at start of the week to use as X label
-    if week_number > 1
-      done_grida[week_counter][0] = current_day.strftime(DATE_OUT_FORMAT)
-    else 
-      # But if week 1 just show year instead (should never find week 0?)
-      done_grida[week_counter][0] = current_day.strftime('%Y')
-    end
+    done_grida[week_counter][0] = if week_number > 1
+                                    current_day.strftime(DATE_OUT_FORMAT)
+                                  else 
+                                    # But if week 1 just show year instead (should never find week 0?)
+                                    current_day.strftime('%Y')
+                                  end
   end
   data = doneh.fetch(current_day.to_s, [0, 0, 0]) # get data, defaulting to zeros
   calc = data[0] + data[1] + data[2] # for now save sum of G+P+O tasks completed TODO: change in time

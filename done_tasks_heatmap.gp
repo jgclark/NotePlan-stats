@@ -55,7 +55,7 @@ unset key
 set title sprintf("Tasks completed (%d weeks to %s)", MaxCol-1, todays_date) font ",12"
 
 plot DATAFILE matrix rowheaders using 1:2:3 skip 1 with image, \
-     DATAFILE matrix rowheaders using 1:2:($3 == 0 ? "" : sprintf("%g",$3) ) \
+     DATAFILE matrix rowheaders using 1:2:(sprintf("%g",$3)) \
           skip 1 with labels font ",8" tc rgb "#22BB22" notitle, \
      for [i=2+Noffset:MaxCol:Nxtic] DATAFILE u (i-2):(NaN):xtic(i) every ::0::0 
-
+# TODO: ideally shift X labels half a box to the left

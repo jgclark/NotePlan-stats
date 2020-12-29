@@ -146,6 +146,9 @@ exit
 # #create a function that accepts linenumber as first arg
 # #and returns second arg if linenumber in the given range.
 # InRange(x,y)=((x>=LINEMIN) ? ((x<=LINEMAX) ? y:1/0) : 1/0)
+#
+# I raised PR to allow *last* n entries (https://sourceforge.net/p/gnuplot/feature-requests/508/)
+# which got the reply to STATS first to count the number of rows and then using every from that
 
 
 #-----------------
