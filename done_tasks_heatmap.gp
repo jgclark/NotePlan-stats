@@ -50,7 +50,7 @@ set yrange [6.5:-0.5] # writeback # to get it displaying Mon->Sun not Sun->Mon d
 stats [*:*][*:*] DATAFILE u 2 skip 1 nooutput  # get the number of columns
 MaxCol = STATS_columns
 Nxtic = 4   # variable to show every Nth x label
-Noffset = 2 # variable to skip to the Nth x label to start displaying
+Noffset = 1 # variable to skip to the Nth x label to start displaying
 unset key
 set title sprintf("Tasks completed (%d weeks to %s)", MaxCol-1, todays_date) font ",12"
 

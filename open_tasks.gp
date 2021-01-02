@@ -92,7 +92,7 @@ set tmargin 1
 set bmargin 0
 set lmargin 6
 set rmargin 3
-set output "/Users/jonathan/Dropbox/NPSummaries/open_tasks.png"
+set output "/Users/jonathan/Dropbox/NPSummaries/open-tasks.png"
 set multiplot layout 3,1 downwards \
   title sprintf("Open tasks in NotePlan (at %s)", date) font ",11"
 set y2range [0:100]
@@ -106,6 +106,5 @@ plot FILENAME using 1:($11+$12+$13) with lines ls 3 axes x1y1 title '# Project t
 set bmargin 2
 set xtics out nomirror font ",8"
 plot FILENAME using 1:($16+$17+$18) with lines ls 5 axes x1y1 title '# Other tasks open', \
-  "" using 1:4 with lines ls 7 axes x1y1 title '# Other open notes', \
   "" using 1:(($15)/($15+$16+$17+$18)*100) with lines ls 6 axes x1y2 title '% tasks complete'
 unset multiplot
