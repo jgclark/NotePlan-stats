@@ -174,6 +174,7 @@ begin
   MENTIONS_TO_COUNT = parsed['mentions_to_count'].sort
   puts MENTIONS_TO_COUNT if $verbose > 0
 rescue JSON::ParserError => e
+  # FIXME: why doesn't this error fire when it can't find the file?
   puts "ERROR: Hit #{e.exception.message} when reading JSON settings file.".colorize(WarningColour)
   exit
 end
