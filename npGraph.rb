@@ -351,6 +351,7 @@ while current_day <= TODAYS_DATE
   net_grida[week_counter][day_of_week] = calc
   current_day += 1
 end
+# FIXME: Error in above, as on a Monday (e.g. 14DEC) it adds a row at the bottom entirely of zeros, even the date
 
 # Now transpose the array so that it is wide not deep
 # net_grida.reverse!
