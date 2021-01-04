@@ -19,7 +19,7 @@
 reset session # reset all things set by 'set' command, apart from term
 
 DATAFILE="/Users/jonathan/Dropbox/NPSummaries/net_tasks_matrix.csv"
-todays_date=system("date +'%e %b %Y'")
+todays_date=system("date +'%d %b %Y'")
 set term png size 800, 260 font "Avenir,9"
 set output "/Users/jonathan/Dropbox/NPSummaries/net_tasks_heatmap.png"
 
@@ -50,7 +50,7 @@ set xtics out nomirror
 stats [*:*][*:*] DATAFILE using 2 skip 1 nooutput  # get the number of columns, skipping first one
 MaxCol = STATS_columns
 Nxtic = 4   # variable to show every Nth x label
-Noffset = 2 # variable to skip to the Nth x label to start displaying
+Noffset = 1 # variable to skip to the Nth x label to start displaying
 unset key
 set title sprintf("Net tasks completed (%d weeks to %s)", MaxCol-1, todays_date) font ",12"
 

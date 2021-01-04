@@ -43,6 +43,7 @@
 # plot 'test.dat' using 2:xtic(1) title 'Col1', '' using 3 title 'Col2', '' using 4 title 'Col3'
 # With this command, the xtic labels will stay the same, and the first bar will no longer be there. Note that the colors for the data will change with this command, since the first thing plotted will be red, the second green and the third blue.
 #-------------------------------------------------------------------------------
+# - v0.7.1, 4.1.2021 - fix date parsing errors when reading tasks_net.csv over a year boundary
 # - v0.7, 29.11.2020 - adds graph of net tasks as a heatmap
 # - v0.6.1, 14.11.2020 - code cleanup
 # - v0.6, 13.11.2020 - adds graph of done tasks as a heatmap
@@ -52,7 +53,7 @@
 # - v0.2.2, 23.8.2020 - change tasks completed per day graph to differentiate between Goal/Project/Other
 # - v0.2.1, 23.8.2020 - add graph for number of tasks completed per day over last 6 months (using local gnuplot)
 # - v0.2, 11.7.2020 - produces graphs of number of open tasks over time for Goals/Projects/Other (using Google Charts API)
-VERSION = '0.7.0'.freeze
+VERSION = '0.7.1'.freeze
 
 require 'date'
 require 'time'
@@ -76,7 +77,6 @@ IO_DIR = "#{USER_DIR}/Dropbox/NPSummaries" if Dir.exist?(CLOUDKIT_DIR) && Dir[Fi
 
 # User-settable Constant Definitions
 DATE_FORMAT = '%d.%m.%y'.freeze
-DATE_TIME_FORMAT = '%e %b %Y %H:%M'.freeze
 TODAYS_DATE = Date.today # can't work out why this needs to be a 'constant' to work -- something about visibility, I suppose
 DATE_TODAY_YYYYMMDD = TODAYS_DATE.strftime('%Y%m%d')
 GP_SCRIPTS_DIR = '/Users/jonathan/GitHub/NotePlan-stats'.freeze
@@ -242,9 +242,10 @@ $verbose = options[:verbose]
 # differentiating goal/projects/other.
 # This might be possible in gnuplot, but its not straightforward, so instead will
 # pre-compute the data and send to a file. Structure:
-#   date, added G, added P, added O, done G, done P, done O, cumulative net G, cumulative net P, cumulative net O
+#   date (%d %b %Y %H:%M), added G, added P, added O, done G, done P, done O, cumulative net G, cumulative net P, cumulative net O
 # Added = all the task_stats categories for one day minus the previous day
 # Done = actual log of the number completed per day
+# NOTE: will use latest entries from CSV if there are multiple entries for a day
 
 begin
   stats_table = CSV.parse(File.read(IO_DIR + '/task_stats.csv'), headers: true, converters: :all)
@@ -260,15 +261,14 @@ rescue StandardError => e
 end
 start_date = TODAYS_DATE - NET_LOOKBACK_DAYS
 
-# TODO: ideally only use latest entries from CSV if there are multiple entries for a day
 
 # Create hash of added tasks (g/p/o) for each day
-addedh = Hash.new { Array.new(3, 0) }
+addedh = Hash.new { Array.new(3, '') } # NOTE: was (3,0), but trying blank ...
 last_gt = last_pt = last_ot = 0
 stats_table.each do |st|
-  d = Date.strptime(st[0][0..10], DATE_OUT_FORMAT) # ignore time portion of datetime string
+puts "working out added for #{st}"
+  d = Date.strptime(st[0][0..10], "%d %b %Y") # ignore time portion of datetime string
   next unless d >= start_date
-
   addedh.store(d.to_s, [st[4] + st[5] + st[6] + st[7] + st[8] - last_gt,
                         st[9] + st[10] + st[11] + st[12] + st[13] - last_pt,
                         st[14] + st[15] + st[16] + st[17] + st[18] - last_ot])
@@ -276,7 +276,7 @@ stats_table.each do |st|
   last_pt = st[9] + st[10] + st[11] + st[12] + st[13]
   last_ot = st[14] + st[15] + st[16] + st[17] + st[18]
 end
-# print_table(addedh)
+
 # Create hash of done tasks (g/p/o) for each day
 doneh = Hash.new { Array.new(3, 0) }
 done_table.each do |dt|
@@ -285,7 +285,7 @@ done_table.each do |dt|
 
   doneh.store(d.to_s[0..9], [dt[1], dt[2], dt[3]])
 end
-# print_table(doneh)
+
 # Create summary array to write out
 summarya = Array.new(NET_LOOKBACK_DAYS, 0)
 i = 0
@@ -301,13 +301,17 @@ while i < NET_LOOKBACK_DAYS
   i += 1
   d += 1
 end
-# Use the CSV library to help make this (a bit) easier
-puts "Writing #{i} lines to #{NET_FILENAME} ..."
-CSV.open(NET_FILENAME, 'w') do |csv_file|
-  summarya.each do |sa|
-    row = sa
-    csv_file << row
+begin
+  # Use the CSV library to help make this (a bit) easier
+  CSV.open(NET_FILENAME, 'w') do |csv_file|
+    summarya.each do |sa|
+      row = sa
+      csv_file << row
+    end
   end
+  puts "Written #{i} lines to #{NET_FILENAME}"
+rescue StandardError => e
+  puts "ERROR: '#{e.exception.message}' when writing #{NET_FILENAME}".colorize(WarningColour)
 end
 
 gp_commands = 'net_tasks.gp'
@@ -323,20 +327,23 @@ puts 'ERROR: Hit problem when creating Net Tasks graph using gnuplot'.colorize(W
 #   date, tasks completed for that day in the week, ...
 #   date of next week, tasks completed for that day in the week, ...
 #   ...
+# NOTE: week starting Mondays. Days in Jan before Monday are in week 0.
+
 # Create new data structure, reusing data doneh hash from above
-net_grida = Array.new(DONE_PERIOD_WEEKS + 2) { Array.new(8) {0} } # extra 2 weeks to allow for data not starting on a Monday
+net_grida = Array.new(DONE_PERIOD_WEEKS + 1) { Array.new(8) {0} } # extra week to allow for data not starting on a Monday
 # populate first week specially with week of first data entry, as it might not fall on week start
 start_date = TODAYS_DATE - (DONE_PERIOD_WEEKS * 7) + 1 # +1 to get past first day which will always be odd as doing net
-week_number = start_date.strftime('%W').to_i # week starting Mondays. Days in Jan before Monday are in week 0.
+week_number = start_date.strftime('%W').to_i # rubocop:disable Lint/UselessAssignment
 week_counter = 1
 net_grida[week_counter][0] = start_date.strftime(DATE_OUT_FORMAT)
 current_day = start_date
-while current_day <= TODAYS_DATE
+while current_day < TODAYS_DATE
   day_of_week = current_day.strftime('%u').to_i # Monday is 1, ...
   if day_of_week == 1
     week_counter += 1
     week_number = current_day.strftime('%W').to_i # don't just increment, as it might be a year boundary
     # create string of date at start of the week to use as X label
+    # TODO: handle possible no data (nil error) in next line
     net_grida[week_counter][0] = if week_number > 1
                                    current_day.strftime(DATE_OUT_FORMAT)
                                  else # But if week 1 just show year instead (should never find week 0?)
@@ -351,24 +358,23 @@ while current_day <= TODAYS_DATE
   net_grida[week_counter][day_of_week] = calc
   current_day += 1
 end
-# FIXME: Error in above, as on a Monday (e.g. 14DEC) it adds a row at the bottom entirely of zeros, even the date
 
 # Now transpose the array so that it is wide not deep
 # net_grida.reverse!
 # puts net_grida
-net_grida[0] = ['Week start','Mon','Tues','Weds','Thurs','Fri','Sat','Sun']
+net_grida[0] = ['Week start', 'Mon', 'Tues', 'Weds', 'Thurs', 'Fri', 'Sat', 'Sun']
 net_grid_transposeda = net_grida.transpose
 
 # Write out new structure to CSV file
 begin
   # Use the CSV library to help make this (a bit) easier
-  puts "Writing #{week_counter} lines to #{NET_HEATMAP_FILENAME} ..."
   CSV.open(NET_HEATMAP_FILENAME, 'w') do |csv_file|
     net_grid_transposeda.each do |sa|
       row = sa
       csv_file << row
     end
   end
+  puts "Written #{week_counter} lines to #{NET_HEATMAP_FILENAME}"
 rescue StandardError => e
   puts "ERROR: '#{e.exception.message}' when writing #{NET_HEATMAP_FILENAME}".colorize(WarningColour)
 end
@@ -376,7 +382,6 @@ end
 gp_commands = 'net_tasks_heatmap.gp'
 gp_call_result = system("/usr/local/bin/gnuplot '#{gp_commands}'")
 puts 'ERROR: Hit problem when creating graphs using gnuplot'.colorize(WarningColour) unless gp_call_result
-
 
 # -----------------------------------------------------------------------------------
 # Do heatmap graphs of completed tasks
@@ -387,23 +392,26 @@ puts 'ERROR: Hit problem when creating graphs using gnuplot'.colorize(WarningCol
 #   date, tasks completed for that day in the week, ...
 #   date of next week, tasks completed for that day in the week, ...
 #   ...
+# NOTE: week starting Mondays. Days in Jan before Monday are in week 0.
+
 # Create new data structure, reusing data doneh hash from above
-done_grida = Array.new(DONE_PERIOD_WEEKS+2) { Array.new(8) {0} } # extra 2 weeks to allow for data not starting on a Monday
+done_grida = Array.new(DONE_PERIOD_WEEKS + 1) { Array.new(8) {0} } # extra week to allow for data not starting on a Monday
 # populate first week specially with week of first data entry, as it might not fall on week start
-start_date = TODAYS_DATE - (DONE_PERIOD_WEEKS * 7)
-week_number = start_date.strftime('%W').to_i # week starting Mondays. Days in Jan before Monday are in week 0.
+start_date = TODAYS_DATE - (DONE_PERIOD_WEEKS * 7) + 1 # +1 to get past first day which will always be odd as doing net
+week_number = start_date.strftime('%W').to_i # rubocop:disable Lint/UselessAssignment
 week_counter = 1
 done_grida[week_counter][0] = start_date.strftime(DATE_OUT_FORMAT)
 current_day = start_date
-while current_day <= TODAYS_DATE
+while current_day < TODAYS_DATE
   day_of_week = current_day.strftime('%u').to_i # Monday is 1, ...
   if day_of_week == 1
     week_counter += 1
     week_number = current_day.strftime('%W').to_i # don't just increment, as it might be a year boundary
     # create string of date at start of the week to use as X label
+    # TODO: handle possible no data (nil error) in next line
     done_grida[week_counter][0] = if week_number > 1
                                     current_day.strftime(DATE_OUT_FORMAT)
-                                  else 
+                                  else
                                     # But if week 1 just show year instead (should never find week 0?)
                                     current_day.strftime('%Y')
                                   end
@@ -417,19 +425,19 @@ end
 # Now transpose the array so that it is wide not deep
 # done_grida.reverse!
 # puts done_grida
-done_grida[0] = ['Week number','Mon','Tues','Weds','Thurs','Fri','Sat','Sun']
+done_grida[0] = ['Week number', 'Mon', 'Tues', 'Weds', 'Thurs', 'Fri', 'Sat', 'Sun']
 done_grid_transposeda = done_grida.transpose
 
 # Write out new structure to CSV file
 begin
   # Use the CSV library to help make this (a bit) easier
-  puts "Writing #{week_counter} lines to #{DONE_HEATMAP_FILENAME} ..."
   CSV.open(DONE_HEATMAP_FILENAME, 'w') do |csv_file|
     done_grid_transposeda.each do |sa|
       row = sa
       csv_file << row
     end
   end
+  puts "Written #{week_counter} lines to #{DONE_HEATMAP_FILENAME}"
 rescue StandardError => e
   puts "ERROR: '#{e.exception.message}' when writing #{DONE_HEATMAP_FILENAME}".colorize(WarningColour)
 end
@@ -562,7 +570,7 @@ begin
   chart3.file
   puts '-> task_diffs.png'
 
-  # FIXME: Can't get this GoogleChart to work. Or is it doing just first 11 items or so?
+# FIXME: Can't get this GoogleChart to work. Or is it doing just first 11 items or so?
 # chart_td = Gchart.new(type: 'bar',
 #                       stacked: false,
 #                       title: "When tasks were done (6 months to #{TODAYS_DATE})",
@@ -586,7 +594,6 @@ begin
 #                   bar_colors: 'ff0000,00ff00',
 #                   filename: 'temp.png')
 # temp.file
-
 rescue StandardError => e
   puts "ERROR: Hit '#{e.exception.message}' when creating graphs using GoogleCharts API".colorize(WarningColour)
 end
