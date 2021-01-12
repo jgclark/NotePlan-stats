@@ -1,6 +1,6 @@
 #!/usr/bin/ruby
 #-------------------------------------------------------------------------------
-# NotePlan Show Stats in a nice little graph
+# NotePlan Show Stats in nice little graphs
 # (c) Jonathan Clark
 #-------------------------------------------------------------------------------
 # Script to graph the stats collected by the npStats.rb script from NotePlan.
@@ -266,7 +266,7 @@ start_date = TODAYS_DATE - NET_LOOKBACK_DAYS
 addedh = Hash.new { Array.new(3, '') } # NOTE: was (3,0), but trying blank ...
 last_gt = last_pt = last_ot = 0
 stats_table.each do |st|
-puts "working out added for #{st}"
+# puts "working out added for #{st}"
   d = Date.strptime(st[0][0..10], "%d %b %Y") # ignore time portion of datetime string
   next unless d >= start_date
   addedh.store(d.to_s, [st[4] + st[5] + st[6] + st[7] + st[8] - last_gt,
@@ -394,6 +394,7 @@ puts 'ERROR: Hit problem when creating graphs using gnuplot'.colorize(WarningCol
 #   ...
 # NOTE: week starting Mondays. Days in Jan before Monday are in week 0.
 
+
 # Create new data structure, reusing data doneh hash from above
 done_grida = Array.new(DONE_PERIOD_WEEKS + 1) { Array.new(8) {0} } # extra week to allow for data not starting on a Monday
 # populate first week specially with week of first data entry, as it might not fall on week start
@@ -403,6 +404,7 @@ week_counter = 1
 done_grida[week_counter][0] = start_date.strftime(DATE_OUT_FORMAT)
 current_day = start_date
 while current_day < TODAYS_DATE
+  # FIXME: why does this not work for today when run at the end of the day?
   day_of_week = current_day.strftime('%u').to_i # Monday is 1, ...
   if day_of_week == 1
     week_counter += 1
