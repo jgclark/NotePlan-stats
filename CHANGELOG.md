@@ -53,6 +53,9 @@
 Initial load into this GitHub project.
 
 ## for npTagStats
+### v1.6.1, 19.1.2021
+- [New] Now show the first date each tag was used in the time period.
+
 ### v1.6.0, 14.12.2020
 - [Change] Now specify the `tags_to_count` and `mentions_to_count` through a separate `~/npTagStats.json' file
 

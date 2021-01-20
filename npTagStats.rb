@@ -1,7 +1,7 @@
 #!/usr/bin/ruby
 #-------------------------------------------------------------------------------
 # NotePlan Tag Stats Summariser
-# Jonathan Clark, v1.6.0, 14.12.2020
+# Jonathan Clark, v1.6.1, 19.1.2021
 #-------------------------------------------------------------------------------
 # Script to give stats on various tags in NotePlan's daily calendar files.
 #
@@ -24,14 +24,15 @@
 # For more information, including installation, please see the GitHub repository:
 #   https://github.com/jgclark/NotePlan-stats/
 #-------------------------------------------------------------------------------
-VERSION = '1.6.0'.freeze
+VERSION = '1.6.1'.freeze
 
 require 'date'
 require 'time'
-require 'etc' # for login lookup, though currently not used
+# require 'etc' # for login lookup, though currently not used
 require 'colorize' # for coloured output using https://github.com/fazibear/colorize
 require 'optparse'
 require 'json'
+# require 'FileList'
 
 # Other User-settable Constant Definitions
 JSON_SETTINGS_FILE = ENV['HOME'] + '/npTagStats.json'.freeze
@@ -189,12 +190,13 @@ the_year_str = ARGV[0] || this_year_str
 puts "Creating stats at #{time_now_fmt} for #{the_year_str}"
 begin
   Dir.chdir(NP_CALENDAR_DIR)
-  Dir.glob(["#{the_year_str}*.txt", "#{the_year_str}*.md"]).each do |this_file|
+  # Get all matching files, *in sorted order*
+  Dir.glob(["#{the_year_str}*.txt", "#{the_year_str}*.md"]).sort.each do |this_file|
     # ignore this file if the directory starts with '@'
-    # fsize = File.size?(this_file) || 0
-    # puts "#{this_file} size #{fsize}" if $verbose.positive?
-    next unless this_file =~ /^[^@]/ # as can't get file glob including [^@] to work
+    # (as can't get file glob including [^@] to work)
+    next unless this_file =~ /^[^@]/ # 
 
+    # puts "#{this_file} size #{fsize}" if $verbose.positive?
     # ignore this file if it's empty
     if File.zero?(this_file)
       puts "  NB: file #{this_file} is empty".colorize(WarningColour)
@@ -216,6 +218,7 @@ if n.positive?
   # Initialise counting arrays for #hashtags and zero all its terms
   tag_counts = Array.new(TAGS_TO_COUNT.count, 0)
   tag_counts_future = Array.new(TAGS_TO_COUNT.count, 0)
+  tag_count_first_date = Array.new(TAGS_TO_COUNT.count, '')
 
   # Initialize counting hash for @mention(n) and zero all its term
   # Helpful ruby hash summary: https://www.tutorialspoint.com/ruby/ruby_hashes.htm
@@ -246,8 +249,9 @@ if n.positive?
           tag_counts_future[i] = tag_counts_future[i] + 1
         else
           tag_counts[i] = tag_counts[i] + 1
+          tag_count_first_date[i] = "#{cal.filename[6..7]}/#{cal.filename[4..5]}" if tag_count_first_date[i] == ''
         end
-        puts "    Found #{t}; counts now #{tag_counts[i]} #{tag_counts_future[i]}" if $verbose > 1
+        puts "    Found #{t}; counts now #{tag_counts[i]} #{tag_counts_future[i]}; first date #{tag_count_first_date[i]}" if $verbose > 1
       end
       i += 1
     end
@@ -287,15 +291,17 @@ if n.positive?
     f = File.open(filepath, 'w')
   end
 
+  # TODO: Ideally don't show 'future' items if date period is all in the past
+
   # Write out the #hashtag counts
-  puts "Tag\t\tPast\tFuture\tfor #{the_year_str}".colorize(TotalColour)
-  f.puts "Tag,Past,Future,#{time_now_fmt}" if options[:write_file]
+  puts "Tag\t\tPast\tFuture\tFirst seen\tfor #{the_year_str}".colorize(TotalColour)
+  f.puts "Tag,Past,Future,First seen,#{time_now_fmt}" if options[:write_file]
 
   # Write out the #tag counts list
   i = 0
   TAGS_TO_COUNT.each do |t|
-    printf("%-15s\t%3d\t%3d\n", t, tag_counts[i], tag_counts_future[i])
-    f.printf("%s,%d,%d\n", t, tag_counts[i], tag_counts_future[i]) if options[:write_file]
+    printf("%-15s\t%3d\t%3d\t%s\n", t, tag_counts[i], tag_counts_future[i], tag_count_first_date[i])
+    f.printf("%s,%d,%d,%s\n", t, tag_counts[i], tag_counts_future[i], tag_count_first_date[i]) if options[:write_file]
     i += 1
   end
   df = printf("  (Days found  \t%3d\t%3d)\n", days, futureDays)
