@@ -7,6 +7,7 @@
 # If the added figures are negative (it happens) then treat as zero.
 # uses Gnuplot 5.2, but would probaby work back to Gnuplot 4.8
 # JGC, 25.10.2020
+#      5.2.2021 removed the negative axis view of added tasks
 
 DATAFILE="/Users/jonathan/Dropbox/NPSummaries/tasks_net.csv"
 todays_date=system("date +'%e %b %Y'")
@@ -14,7 +15,7 @@ todays_date=system("date +'%e %b %Y'")
 # column stacked, and now summarised using week-long 'bins'
 reset # reset all things set by 'set' command, apart from term
 # clear # clear the current output device. Is this needed?
-set term png size 800, 400 font "Avenir,9"
+set term png size 800, 300 font "Avenir,9"
 set datafile separator comma
 set boxwidth 1.0 relative
 set style fill solid 1.0 border
@@ -45,12 +46,12 @@ set output "/Users/jonathan/Dropbox/NPSummaries/net_tasks.png"
 plot DATAFILE using 1:($5+$6+$7) bins=bins_to_use with boxes lc "#40ee40" title "Completed Other tasks",\
  "" using 1:($5+$6) bins=bins_to_use with boxes lc "#4d4df0" title "Completed Project tasks",\
  "" using 1:($5) bins=bins_to_use with boxes lc "#f04040" title "Completed Goal tasks",\
- "" using 1:((-$2-$3-$4)<0 ? (-$2-$3-$4) : 0) bins=bins_to_use with boxes lc "#90ee90" title "Added Other tasks",\
- "" using 1:((-$2-$3)<0 ? (-$2-$3) : 0) bins=bins_to_use with boxes lc "#9090f0" title "Added Project tasks",\
- "" using 1:((-$2)<0 ? (-$2) : 0) bins=bins_to_use with boxes lc "#f0a2a2" title "Added Goal tasks",\
  "" using 1:10 with lines lw 2 lc "#10ce10" title "Cum. Other (net)",\
  "" using 1:9 with lines lw 2 lc "#1010f0" title "Cum. Project (net)",\
  "" using 1:8 with lines lw 2 lc "#c01010" title "Cum. Goal (net)"
+#  "" using 1:((-$2-$3-$4)<0 ? (-$2-$3-$4) : 0) bins=bins_to_use with boxes lc "#90ee90" title "Added Other tasks",\
+#  "" using 1:((-$2-$3)<0 ? (-$2-$3) : 0) bins=bins_to_use with boxes lc "#9090f0" title "Added Project tasks",\
+#  "" using 1:((-$2)<0 ? (-$2) : 0) bins=bins_to_use with boxes lc "#f0a2a2" title "Added Goal tasks",\
 
 #-----------------
 # Currently using hacky way of using just last 60 lines; it wouldn't work for data groups in same file:
