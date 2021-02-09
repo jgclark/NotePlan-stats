@@ -43,6 +43,7 @@
 # plot 'test.dat' using 2:xtic(1) title 'Col1', '' using 3 title 'Col2', '' using 4 title 'Col3'
 # With this command, the xtic labels will stay the same, and the first bar will no longer be there. Note that the colors for the data will change with this command, since the first thing plotted will be red, the second green and the third blue.
 #-------------------------------------------------------------------------------
+# - v0.7.2, 9.2.2021 - now use environment variable NPEXTRAS to set IO_DIR if using CloudKit storage
 # - v0.7.1, 4.1.2021 - fix date parsing errors when reading tasks_net.csv over a year boundary
 # - v0.7, 29.11.2020 - adds graph of net tasks as a heatmap
 # - v0.6.1, 14.11.2020 - code cleanup
@@ -53,7 +54,7 @@
 # - v0.2.2, 23.8.2020 - change tasks completed per day graph to differentiate between Goal/Project/Other
 # - v0.2.1, 23.8.2020 - add graph for number of tasks completed per day over last 6 months (using local gnuplot)
 # - v0.2, 11.7.2020 - produces graphs of number of open tasks over time for Goals/Projects/Other (using Google Charts API)
-VERSION = '0.7.1'.freeze
+VERSION = '0.7.2'.freeze
 
 require 'date'
 require 'time'
@@ -73,7 +74,7 @@ ICLOUDDRIVE_DIR = "#{USER_DIR}/Library/Mobile Documents/iCloud~co~noteplan~NoteP
 CLOUDKIT_DIR = "#{USER_DIR}/Library/Containers/co.noteplan.NotePlan3/Data/Library/Application Support/co.noteplan.NotePlan3".freeze
 IO_DIR = "#{DROPBOX_DIR}/Summaries" if Dir.exist?(DROPBOX_DIR) && Dir[File.join(DROPBOX_DIR, '**', '*')].count { |file| File.file?(file) } > 1
 IO_DIR = "#{ICLOUDDRIVE_DIR}/Summaries" if Dir.exist?(ICLOUDDRIVE_DIR) && Dir[File.join(ICLOUDDRIVE_DIR, '**', '*')].count { |file| File.file?(file) } > 1
-IO_DIR = "#{USER_DIR}/Dropbox/NPSummaries" if Dir.exist?(CLOUDKIT_DIR) && Dir[File.join(CLOUDKIT_DIR, '**', '*')].count { |file| File.file?(file) } > 1 # NB: not the usual CloudKit directory, as non-NotePlan folders won't sync from it.
+IO_DIR = "#{ENV['NPEXTRAS']}" if Dir.exist?(CLOUDKIT_DIR) && Dir[File.join(CLOUDKIT_DIR, '**', '*')].count { |file| File.file?(file) } > 1 # NB: a user-set directory, not the usual CloudKit directory, as non-NotePlan folders won't sync from it.
 
 # User-settable Constant Definitions
 DATE_FORMAT = '%d.%m.%y'.freeze
@@ -334,7 +335,7 @@ net_grida = Array.new(DONE_PERIOD_WEEKS + 1) { Array.new(8) {0} } # extra week t
 # populate first week specially with week of first data entry, as it might not fall on week start
 start_date = TODAYS_DATE - (DONE_PERIOD_WEEKS * 7) + 1 # +1 to get past first day which will always be odd as doing net
 week_number = start_date.strftime('%W').to_i # rubocop:disable Lint/UselessAssignment
-week_counter = 1
+week_counter = 0
 net_grida[week_counter][0] = start_date.strftime(DATE_OUT_FORMAT)
 current_day = start_date
 while current_day < TODAYS_DATE
@@ -343,13 +344,12 @@ while current_day < TODAYS_DATE
     week_counter += 1
     week_number = current_day.strftime('%W').to_i # don't just increment, as it might be a year boundary
     # create string of date at start of the week to use as X label
-    # TODO: handle possible no data (nil error) in next line
+    # puts "  Collating net data for w/c #{week_number} #{current_day} #{week_counter} ..."
     net_grida[week_counter][0] = if week_number > 1
                                    current_day.strftime(DATE_OUT_FORMAT)
                                  else # But if week 1 just show year instead (should never find week 0?)
                                    current_day.strftime('%Y')
                                  end
-    # puts "  Collating data for w/c #{current_day} #{week_counter}"
   end
   data_done = doneh.fetch(current_day.to_s, [0, 0, 0]) # get data, defaulting to zeros
   data_added = addedh.fetch(current_day.to_s, [0, 0, 0]) # get data, defaulting to zeros
@@ -400,7 +400,7 @@ done_grida = Array.new(DONE_PERIOD_WEEKS + 1) { Array.new(8) {0} } # extra week 
 # populate first week specially with week of first data entry, as it might not fall on week start
 start_date = TODAYS_DATE - (DONE_PERIOD_WEEKS * 7) + 1 # +1 to get past first day which will always be odd as doing net
 week_number = start_date.strftime('%W').to_i # rubocop:disable Lint/UselessAssignment
-week_counter = 1
+week_counter = 0
 done_grida[week_counter][0] = start_date.strftime(DATE_OUT_FORMAT)
 current_day = start_date
 while current_day < TODAYS_DATE
@@ -410,7 +410,7 @@ while current_day < TODAYS_DATE
     week_counter += 1
     week_number = current_day.strftime('%W').to_i # don't just increment, as it might be a year boundary
     # create string of date at start of the week to use as X label
-    # TODO: handle possible no data (nil error) in next line
+    # puts "  Collating done data for w/c #{week_number} #{current_day} #{week_counter} ..."
     done_grida[week_counter][0] = if week_number > 1
                                     current_day.strftime(DATE_OUT_FORMAT)
                                   else
