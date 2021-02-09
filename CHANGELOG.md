@@ -1,6 +1,9 @@
 # CHANGELOG
 
 ## for npStats
+### v1.5.2, 9.2.2021
+- [Change] Folder for file outputs now set via environment variable NPEXTRAS (if using CloudKit as NP storage type)
+
 ### v1.5.1, 17.11.2020
 - [Improve] Automatic configuration of NotePlan storage (CloudKit > iCloudDrive > Dropbox)
 
@@ -53,6 +56,9 @@
 Initial load into this GitHub project.
 
 ## for npTagStats
+### v1.6.2, 9.2.2021
+- [Change] Folder for file outputs now set via environment variable NPEXTRAS (if using CloudKit as NP storage type)
+
 ### v1.6.1, 19.1.2021
 - [New] Now show the first date each tag was used in the time period.
 

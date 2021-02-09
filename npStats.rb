@@ -1,7 +1,7 @@
 #!/usr/bin/ruby
 #-------------------------------------------------------------------------------
 # NotePlan Task Stats Summariser
-# (c) JGC, v1.5.1, 17.11.2020
+# (c) JGC, v1.5.2, 9.2.2021
 #-------------------------------------------------------------------------------
 # Script to give stats on various tags in NotePlan's Notes and Daily files.
 #
@@ -20,18 +20,18 @@
 # For more information please see the GitHub repository:
 #   https://github.com/jgclark/NotePlan-stats/
 #-------------------------------------------------------------------------------
-VERSION = '1.5.1'.freeze
+VERSION = '1.5.2'.freeze
 
 require 'date'
 require 'time'
-require 'etc' # for login lookup, though currently not used
+# require 'etc' # for login lookup, though currently not used
 require 'colorize' # for coloured output using https://github.com/fazibear/colorize
 require 'optparse'
 
 # User-settable constants
 DATE_FORMAT = '%d.%m.%y'.freeze
 DATE_TIME_FORMAT = '%d %b %Y %H:%M'.freeze
-
+# also set NPEXTRAS environment variable if needed for location of file output
 
 # Constants
 USERNAME = ENV['LOGNAME'] # pull username from environment
@@ -45,9 +45,9 @@ NP_BASE_DIR = CLOUDKIT_DIR if Dir.exist?(CLOUDKIT_DIR) && Dir[File.join(CLOUDKIT
 NP_CALENDAR_DIR = "#{NP_BASE_DIR}/Calendar".freeze
 NP_NOTE_DIR = "#{NP_BASE_DIR}/Notes".freeze
 OUTPUT_DIR = if Dir.exist?(CLOUDKIT_DIR) && Dir[File.join(CLOUDKIT_DIR, '**', '*')].count { |file| File.file?(file) } > 1
-               "/Users/#{USERNAME}/Dropbox/NPSummaries" # save in user's home Dropbox directory as it won't be sync'd in a CloudKit directory
+               "#{ENV['NPEXTRAS']}" # save in user-specified directory as it won't be sync'd in a CloudKit directory
              else
-               "#{NP_BASE_DIR}/Summaries".freeze # but otherwise store in Summaries/ directory
+               "#{np_base_dir}/Summaries".freeze # but otherwise can store in Summaries/ directory in NP
              end
 TODAYS_DATE = Date.today # can't work out why this needs to be a 'constant' to work -- something about visibility, I suppose
 DATE_TODAY_YYYYMMDD = TODAYS_DATE.strftime('%Y%m%d')

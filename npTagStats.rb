@@ -1,7 +1,7 @@
 #!/usr/bin/ruby
 #-------------------------------------------------------------------------------
 # NotePlan Tag Stats Summariser
-# Jonathan Clark, v1.6.1, 19.1.2021
+# Jonathan Clark, v1.6.2, 9.2.2021
 #-------------------------------------------------------------------------------
 # Script to give stats on various tags in NotePlan's daily calendar files.
 #
@@ -24,18 +24,17 @@
 # For more information, including installation, please see the GitHub repository:
 #   https://github.com/jgclark/NotePlan-stats/
 #-------------------------------------------------------------------------------
-VERSION = '1.6.1'.freeze
+VERSION = '1.6.2'.freeze
 
 require 'date'
 require 'time'
-# require 'etc' # for login lookup, though currently not used
 require 'colorize' # for coloured output using https://github.com/fazibear/colorize
 require 'optparse'
 require 'json'
 # require 'FileList'
 
 # Other User-settable Constant Definitions
-JSON_SETTINGS_FILE = ENV['HOME'] + '/npTagStats.json'.freeze
+JSON_SETTINGS_FILE = "#{ENV['NPEXTRAS']}/npTagStats.json".freeze
 DATE_FORMAT = '%d.%m.%y'.freeze
 DATE_TIME_FORMAT = '%e %b %Y %H:%M (week %V, day %j)'.freeze
 
@@ -54,9 +53,9 @@ NP_NOTE_DIR = "#{np_base_dir}/Notes".freeze
 NP_CALENDAR_DIR = "#{np_base_dir}/Calendar".freeze
 # TODO: Check whether Summaries directory exists. If not, create it.
 OUTPUT_DIR = if Dir.exist?(CLOUDKIT_DIR) && Dir[File.join(CLOUDKIT_DIR, '**', '*')].count { |file| File.file?(file) } > 1
-               "/Users/#{USERNAME}/Dropbox/NPSummaries" # save in user's home directory as it won't be sync'd in a CloudKit directory
+               "#{ENV['NPEXTRAS']}" # save in user-specified directory as it won't be sync'd in a CloudKit directory
              else
-               "#{np_base_dir}/Summaries".freeze # but otherwise store in Summaries/ directory
+               "#{np_base_dir}/Summaries".freeze # but otherwise can store in Summaries/ directory in NP
              end
 
 # Colours, using the colorization gem
