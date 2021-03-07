@@ -11,6 +11,7 @@
 # It writes outputs to screen
 #
 # TODO:
+# * [ ] get working for project files as well
 # * [ ] allow for multuple attributes on same line (up to next attr or @ or #) -- see Expressions ... need to 
 # * [ ] allow for numeric attributes (specify differently in JSON)
 # * [ ] write to a suitable monthly file
