@@ -1,7 +1,7 @@
 #!/usr/bin/ruby
 #-------------------------------------------------------------------------------
 # NotePlan Tag Stats Summariser
-# Jonathan Clark, v1.6.2, 9.2.2021
+# Jonathan Clark, v1.6.3, 9.3.2021
 #-------------------------------------------------------------------------------
 # Script to give stats on various tags in NotePlan's daily calendar files.
 #
@@ -17,14 +17,12 @@
 #    dates in the future, from year to date
 #
 # Configuration:
-# - STORAGE_TYPE: select CloudKit (default from NP3.0), iCloudDrive (default until NP3) or Drobpox
-# - TAGE_TO_COUNT: array of tags to count
-# - USERNAME: the username of the Dropbox/iCloud account to use
+# - see README for details of the .json file
 #-------------------------------------------------------------------------------
 # For more information, including installation, please see the GitHub repository:
 #   https://github.com/jgclark/NotePlan-stats/
 #-------------------------------------------------------------------------------
-VERSION = '1.6.2'.freeze
+VERSION = '1.6.3'.freeze
 
 require 'date'
 require 'time'
@@ -39,7 +37,6 @@ DATE_FORMAT = '%d.%m.%y'.freeze
 DATE_TIME_FORMAT = '%e %b %Y %H:%M (week %V, day %j)'.freeze
 
 # Constants
-USERNAME = ENV['LOGNAME'] # pull username from environment
 USER_DIR = ENV['HOME'] # pull home directory from environment
 DROPBOX_DIR = "#{USER_DIR}/Dropbox/Apps/NotePlan/Documents".freeze
 ICLOUDDRIVE_DIR = "#{USER_DIR}/Library/Mobile Documents/iCloud~co~noteplan~NotePlan/Documents".freeze

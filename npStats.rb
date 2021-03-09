@@ -1,7 +1,7 @@
 #!/usr/bin/ruby
 #-------------------------------------------------------------------------------
 # NotePlan Task Stats Summariser
-# (c) JGC, v1.5.2, 9.2.2021
+# (c) JGC, v1.5.3, 9.3.2021
 #-------------------------------------------------------------------------------
 # Script to give stats on various tags in NotePlan's Notes and Daily files.
 #
@@ -13,18 +13,15 @@
 # It writes output to screen and to a CSV file
 #
 # Configuration:
-# - STORAGE_TYPE: select CloudKit (default from NP3.0), iCloudDrive (default until NP3) or Drobpox
-# - USERNAME: the username of the Dropbox/iCloud account to use
-# Requires gems colorize & optparse (> gem install colorize optparse)
+# - Requires gems colorize & optparse (> gem install colorize optparse)
 #-------------------------------------------------------------------------------
 # For more information please see the GitHub repository:
 #   https://github.com/jgclark/NotePlan-stats/
 #-------------------------------------------------------------------------------
-VERSION = '1.5.2'.freeze
+VERSION = '1.5.3'.freeze
 
 require 'date'
 require 'time'
-# require 'etc' # for login lookup, though currently not used
 require 'colorize' # for coloured output using https://github.com/fazibear/colorize
 require 'optparse'
 
@@ -34,16 +31,20 @@ DATE_TIME_FORMAT = '%d %b %Y %H:%M'.freeze
 # also set NPEXTRAS environment variable if needed for location of file output
 
 # Constants
-USERNAME = ENV['LOGNAME'] # pull username from environment
 USER_DIR = ENV['HOME'] # pull home directory from environment
 DROPBOX_DIR = "#{USER_DIR}/Dropbox/Apps/NotePlan/Documents".freeze
 ICLOUDDRIVE_DIR = "#{USER_DIR}/Library/Mobile Documents/iCloud~co~noteplan~NotePlan/Documents".freeze
 CLOUDKIT_DIR = "#{USER_DIR}/Library/Containers/co.noteplan.NotePlan3/Data/Library/Application Support/co.noteplan.NotePlan3".freeze
-NP_BASE_DIR = DROPBOX_DIR if Dir.exist?(DROPBOX_DIR) && Dir[File.join(DROPBOX_DIR, '**', '*')].count { |file| File.file?(file) } > 1
-NP_BASE_DIR = ICLOUDDRIVE_DIR if Dir.exist?(ICLOUDDRIVE_DIR) && Dir[File.join(ICLOUDDRIVE_DIR, '**', '*')].count { |file| File.file?(file) } > 1
-NP_BASE_DIR = CLOUDKIT_DIR if Dir.exist?(CLOUDKIT_DIR) && Dir[File.join(CLOUDKIT_DIR, '**', '*')].count { |file| File.file?(file) } > 1
+NP_BASE_DIR = if Dir.exist?(CLOUDKIT_DIR) && Dir[File.join(CLOUDKIT_DIR, '**', '*')].count { |file| File.file?(file) } > 1
+                CLOUDKIT_DIR
+              elsif Dir.exist?(ICLOUDDRIVE_DIR) && Dir[File.join(ICLOUDDRIVE_DIR, '**', '*')].count { |file| File.file?(file) } > 1
+                ICLOUDDRIVE_DIR
+              elsif Dir.exist?(DROPBOX_DIR) && Dir[File.join(DROPBOX_DIR, '**', '*')].count { |file| File.file?(file) } > 1
+                DROPBOX_DIR
+              end
 NP_CALENDAR_DIR = "#{NP_BASE_DIR}/Calendar".freeze
 NP_NOTE_DIR = "#{NP_BASE_DIR}/Notes".freeze
+# NB: a user-set directory, not the usual CloudKit directory, as non-NotePlan folders won't sync from it.
 OUTPUT_DIR = if Dir.exist?(CLOUDKIT_DIR) && Dir[File.join(CLOUDKIT_DIR, '**', '*')].count { |file| File.file?(file) } > 1
                "#{ENV['NPEXTRAS']}" # save in user-specified directory as it won't be sync'd in a CloudKit directory
              else
@@ -218,7 +219,7 @@ class NPNote
       f.each_line do |line|
         line_header_level = 0
         line.scan(/^(#+)\s/) { |m| line_header_level = m[0].length }
-        if line_header_level > 0
+        if line_header_level.positive?
           # is this a same- or higher-level header? If so take us out of a #template section
           template_section_header_level = 0 if (line_header_level > 0) && (line_header_level <= template_section_header_level)
           # see if this line takes us into a #template section
@@ -240,7 +241,7 @@ class NPNote
             @done_dates[c_d_ordinal] += 1
           end
         elsif line =~ /^\s*\*\s+/ && line !~ /\[\-\]/ # a task, but not cancelled (or by implication not completed)
-          unless template_section_header_level > 0
+          unless template_section_header_level.positive?
             # we're not in a #template so continue processing
             if line =~ /#waiting/
               @waiting += 1 # count this as waiting not open

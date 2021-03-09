@@ -43,6 +43,7 @@
 # plot 'test.dat' using 2:xtic(1) title 'Col1', '' using 3 title 'Col2', '' using 4 title 'Col3'
 # With this command, the xtic labels will stay the same, and the first bar will no longer be there. Note that the colors for the data will change with this command, since the first thing plotted will be red, the second green and the third blue.
 #-------------------------------------------------------------------------------
+# - v0.7.3, 9.3.2021 - code clean-up
 # - v0.7.2, 9.2.2021 - now use environment variable NPEXTRAS to set IO_DIR if using CloudKit storage
 # - v0.7.1, 4.1.2021 - fix date parsing errors when reading tasks_net.csv over a year boundary
 # - v0.7, 29.11.2020 - adds graph of net tasks as a heatmap
@@ -54,7 +55,7 @@
 # - v0.2.2, 23.8.2020 - change tasks completed per day graph to differentiate between Goal/Project/Other
 # - v0.2.1, 23.8.2020 - add graph for number of tasks completed per day over last 6 months (using local gnuplot)
 # - v0.2, 11.7.2020 - produces graphs of number of open tasks over time for Goals/Projects/Other (using Google Charts API)
-VERSION = '0.7.2'.freeze
+VERSION = '0.7.3'.freeze
 
 require 'date'
 require 'time'
@@ -67,14 +68,14 @@ require 'array_arithmetic' # info at https://github.com/CJAdeszko/array_arithmet
 require 'gnuplot'
 
 # Constants
-USERNAME = ENV['LOGNAME'] # pull username from environment
 USER_DIR = ENV['HOME'] # pull home directory from environment
-DROPBOX_DIR = "#{USER_DIR}/Dropbox/Apps/NotePlan/Documents".freeze
-ICLOUDDRIVE_DIR = "#{USER_DIR}/Library/Mobile Documents/iCloud~co~noteplan~NotePlan/Documents".freeze
 CLOUDKIT_DIR = "#{USER_DIR}/Library/Containers/co.noteplan.NotePlan3/Data/Library/Application Support/co.noteplan.NotePlan3".freeze
-IO_DIR = "#{DROPBOX_DIR}/Summaries" if Dir.exist?(DROPBOX_DIR) && Dir[File.join(DROPBOX_DIR, '**', '*')].count { |file| File.file?(file) } > 1
-IO_DIR = "#{ICLOUDDRIVE_DIR}/Summaries" if Dir.exist?(ICLOUDDRIVE_DIR) && Dir[File.join(ICLOUDDRIVE_DIR, '**', '*')].count { |file| File.file?(file) } > 1
-IO_DIR = "#{ENV['NPEXTRAS']}" if Dir.exist?(CLOUDKIT_DIR) && Dir[File.join(CLOUDKIT_DIR, '**', '*')].count { |file| File.file?(file) } > 1 # NB: a user-set directory, not the usual CloudKit directory, as non-NotePlan folders won't sync from it.
+# NB: a user-set directory, not the usual CloudKit directory, as non-NotePlan folders won't sync from it.
+IO_DIR = if Dir.exist?(CLOUDKIT_DIR) && Dir[File.join(CLOUDKIT_DIR, '**', '*')].count { |file| File.file?(file) } > 1
+           "#{ENV['NPEXTRAS']}" # save in user-specified directory as it won't be sync'd in a CloudKit directory
+         else
+           "#{np_base_dir}/Summaries".freeze # but otherwise can store in Summaries/ directory in NP
+         end
 
 # User-settable Constant Definitions
 DATE_FORMAT = '%d.%m.%y'.freeze
@@ -266,7 +267,7 @@ start_date = TODAYS_DATE - NET_LOOKBACK_DAYS
 # Create hash of added tasks (g/p/o) for each day
 addedh = Hash.new { Array.new(3, '') } # NOTE: was (3,0), but trying blank ...
 last_gt = last_pt = last_ot = 0
-stats_table.each do |st|
+stats_table.each do |st| # FIXME: can be nil with missing data?
 # puts "working out added for #{st}"
   d = Date.strptime(st[0][0..10], "%d %b %Y") # ignore time portion of datetime string
   next unless d >= start_date
