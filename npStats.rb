@@ -1,7 +1,7 @@
 #!/usr/bin/ruby
 #-------------------------------------------------------------------------------
 # NotePlan Task Stats Summariser
-# (c) JGC, v1.5.3, 9.3.2021
+# (c) JGC, v1.5.4, 10.3.2021
 #-------------------------------------------------------------------------------
 # Script to give stats on various tags in NotePlan's Notes and Daily files.
 #
@@ -18,7 +18,7 @@
 # For more information please see the GitHub repository:
 #   https://github.com/jgclark/NotePlan-stats/
 #-------------------------------------------------------------------------------
-VERSION = '1.5.3'.freeze
+VERSION = '1.5.4'.freeze
 
 require 'date'
 require 'time'
@@ -409,22 +409,22 @@ ddoa.each do |aa|
 end
 dds = done_dates.sort
 # Now compact the array summing items with the same key
-last_key = 0
-last_col1 = 0
-last_col2 = 0
-last_col3 = 0
+previous_key = 0
+previous_col1 = 0
+previous_col2 = 0
+previous_col3 = 0
 i = 0
 dds.each do |row|
-  if last_key == row[0]
-    row[1] += last_col1
-    row[2] += last_col2
-    row[3] += last_col3
+  if previous_key == row[0]
+    row[1] += previous_col1
+    row[2] += previous_col2
+    row[3] += previous_col3
     dds[i - 1][0] = 0 # mark for deletion. Trying to delete in place mucks up the loop positioning
   end
-  last_key = row[0]
-  last_col1 = row[1]
-  last_col2 = row[2]
-  last_col3 = row[3]
+  previous_key = row[0]
+  previous_col1 = row[1]
+  previous_col2 = row[2]
+  previous_col3 = row[3]
   i += 1
 end
 # now remove the row set to delete
@@ -433,7 +433,8 @@ done_dates = dds
 # TODO: change back to using YYYY-MM-DD dates
 
 #===============================================================================
-# Calendar stats
+# Calendar stats:
+# add these onto previous 'other' task counts
 #===============================================================================
 calFiles = [] # to hold all relevant calendar objects
 
@@ -458,6 +459,7 @@ unless options[:no_calendar]
 
   if n.positive? # if we have some notes to work on ...
     calFiles.each do |cal|
+
       # count tasks
       tod += cal.done
       too += cal.open
@@ -508,8 +510,11 @@ begin
   total_done_count = 0
   f.puts 'Date,Goals,Projects,Others' # headers
   done_dates.each do |d|
-    # convert date from ordinal back to YYYY-MM-DD
     date_temp = Date.strptime(d[0], '%Y%j') # we only want the first item, but don't know why it needs to be first of the first
+    # ignore this date if its in the future
+    next if date_temp >= TODAYS_DATE
+
+    # convert date from ordinal back to YYYY-MM-DD
     date_YMD = date_temp.strftime('%Y-%m-%d')
     f.puts "#{date_YMD},#{d[1]},#{d[2]},#{d[3]}"
     total_done_count += d[1] + d[2] + d[3]

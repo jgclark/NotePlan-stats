@@ -1,6 +1,9 @@
 # CHANGELOG
 
 ## for npStats
+### v1.5.4, 10.3.2021
+- [Fix] task_done_dates.csv no longer includes future dates
+
 ### v1.5.2, 9.2.2021
 - [Change] Folder for file outputs now set via environment variable NPEXTRAS (if using CloudKit as NP storage type)
 
