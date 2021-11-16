@@ -43,6 +43,7 @@
 # plot 'test.dat' using 2:xtic(1) title 'Col1', '' using 3 title 'Col2', '' using 4 title 'Col3'
 # With this command, the xtic labels will stay the same, and the first bar will no longer be there. Note that the colors for the data will change with this command, since the first thing plotted will be red, the second green and the third blue.
 #-------------------------------------------------------------------------------
+# - v0.8.1, 2021-11-16 - will now work on M1 Macs with different Homebrew location
 # - v0.8.0, 2021-10-30 - comment out the 'net tasks' generation
 # - v0.7.3, 9.3.2021 - code clean-up
 # - v0.7.2, 9.2.2021 - now use environment variable NPEXTRAS to set IO_DIR if using CloudKit storage
@@ -56,7 +57,7 @@
 # - v0.2.2, 23.8.2020 - change tasks completed per day graph to differentiate between Goal/Project/Other
 # - v0.2.1, 23.8.2020 - add graph for number of tasks completed per day over last 6 months (using local gnuplot)
 # - v0.2, 11.7.2020 - produces graphs of number of open tasks over time for Goals/Projects/Other (using Google Charts API)
-VERSION = '0.8.0'.freeze
+VERSION = '0.8.1'.freeze
 
 require 'date'
 require 'time'
@@ -77,6 +78,12 @@ IO_DIR = if Dir.exist?(CLOUDKIT_DIR) && Dir[File.join(CLOUDKIT_DIR, '**', '*')].
          else
            "#{np_base_dir}/Summaries".freeze # but otherwise can store in Summaries/ directory in NP
          end
+# Allow for both M1 and Intel versions of Homebrew
+GP_EXEC_DIR = if Dir.exist?("/opt/homebrew/bin")
+    "/opt/homebrew/bin/gnuplot"
+  else 
+    "/usr/local/bin/gnuplot"
+  end
 
 # User-settable Constant Definitions
 DATE_FORMAT = '%d.%m.%y'.freeze
@@ -171,7 +178,7 @@ rescue StandardError => e
 end
 
 gp_commands = 'mentions.gp'
-gp_call_result = system("/usr/local/bin/gnuplot '#{gp_commands}'")
+gp_call_result = system("#{GP_EXEC_DIR} '#{gp_commands}'")
 puts 'ERROR: Hit problem when creating graphs using gnuplot'.colorize(WarningColour) unless gp_call_result
 
 # -----------------------------------------------------------------------------------
@@ -258,7 +265,7 @@ puts 'ERROR: Hit problem when creating graphs using gnuplot'.colorize(WarningCol
 # Alternatively use separate gnuplot definition file and call:
 # - https://stackoverflow.com/questions/2232/how-to-call-shell-commands-from-ruby
 # gp_commands = 'done_tasks.gp'
-# gp_call_result = system("/usr/local/bin/gnuplot '#{gp_commands}'")
+# gp_call_result = system("#{GP_EXEC_DIR} '#{gp_commands}'")
 # puts 'ERROR: Hit problem when creating Done Tasks graph using gnuplot'.colorize(WarningColour) unless gp_call_result
 
 # -----------------------------------------------------------------------------------
@@ -342,7 +349,7 @@ end
 # end
 
 # gp_commands = 'net_tasks.gp'
-# gp_call_result = system("/usr/local/bin/gnuplot '#{gp_commands}'")
+# gp_call_result = system("#{GP_EXEC_DIR} '#{gp_commands}'")
 # puts 'ERROR: Hit problem when creating Net Tasks graph using gnuplot'.colorize(WarningColour) unless gp_call_result
 
 # -----------------------------------------------------------------------------------
@@ -407,7 +414,7 @@ end
 # end
 
 # gp_commands = 'net_tasks_heatmap.gp'
-# gp_call_result = system("/usr/local/bin/gnuplot '#{gp_commands}'")
+# gp_call_result = system("#{GP_EXEC_DIR} '#{gp_commands}'")
 # puts 'ERROR: Hit problem when creating graphs using gnuplot'.colorize(WarningColour) unless gp_call_result
 
 # -----------------------------------------------------------------------------------
@@ -471,7 +478,7 @@ rescue StandardError => e
 end
 
 gp_commands = 'done_tasks_heatmap.gp'
-gp_call_result = system("/usr/local/bin/gnuplot '#{gp_commands}'")
+gp_call_result = system("#{GP_EXEC_DIR} '#{gp_commands}'")
 puts 'ERROR: Hit problem when creating graphs using gnuplot'.colorize(WarningColour) unless gp_call_result
 
 # -----------------------------------------------------------------------------------
@@ -492,7 +499,7 @@ rescue StandardError => e
 end
 
 gp_commands = 'open_tasks.gp'
-gp_call_result = system("/usr/local/bin/gnuplot '#{gp_commands}'")
+gp_call_result = system("#{GP_EXEC_DIR} '#{gp_commands}'")
 puts 'ERROR: Hit problem when creating graphs using gnuplot'.colorize(WarningColour) unless gp_call_result
 
 exit
