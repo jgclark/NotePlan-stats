@@ -1,4 +1,4 @@
-#!/usr/bin/ruby
+#!/usr/bin/env ruby
 #-------------------------------------------------------------------------------
 # NotePlan Task Stats Summariser
 # (c) JGC, v1.5.4, 10.3.2021

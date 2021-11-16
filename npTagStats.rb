@@ -1,4 +1,4 @@
-#!/usr/bin/ruby
+#!/usr/bin/env ruby
 #-------------------------------------------------------------------------------
 # NotePlan Tag Stats Summariser
 # Jonathan Clark, v1.6.3, 9.3.2021

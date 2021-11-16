@@ -63,7 +63,7 @@ date=system("date +'%e %b %y'")
 set term png size 800, 400 font "Avenir,9"
 set datafile separator comma columnheader
 set border 15 lw 1 # all
-set key inside bottom right nobox
+set key inside bottom left nobox
 set key enhanced
 # set key autotitle columnheader
 stats FILENAME using 1 nooutput
@@ -75,7 +75,7 @@ set timefmt "%d %b %Y %H:%M" # format of the dates in the input
 first_date = system("head -n 2 " . FILENAME . " | tail -1 | cut -f 1 -d ','")
 todays_date = system("date +'%d %b %Y %H:%M'") # today's date in current timefmt
 set xrange [first_date:todays_date]
-set format x "%b %y"
+set format x "%b'%y"
 unset xtics # unset for first two graphs. This appears to change xscale.
 set yrange [0:*]  # automatic
 set ytics out nomirror font ",8"
