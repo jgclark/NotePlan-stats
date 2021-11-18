@@ -55,7 +55,7 @@ unset key
 set title sprintf("Net tasks completed (%d weeks to %s)", MaxCol-1, todays_date) font ",12"
 
 plot DATAFILE matrix rowheaders using 1:2:3 skip 1 with image, \
-     DATAFILE matrix rowheaders using 1:2:(sprintf("%g",$3) ) skip 1 with labels font ",8" tc rgb "#888888" notitle, \
+     DATAFILE matrix rowheaders using 1:2:(sprintf("%g",$3) ) skip 1 with labels font ",8" tc rgb "#666666" notitle, \
      for [i=2+Noffset:MaxCol:Nxtic] DATAFILE u (i-2):(NaN):xtic(i) every ::0::0 
 
 # Trick: to avoid printing '0' in cells: using 1:2:($3 == 0 ? "" : sprintf("%g",$3) )
