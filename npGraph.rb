@@ -158,24 +158,8 @@ $verbose = options[:verbose]
 # puts subtract(one, add(two,three))
 
 # -----------------------------------------------------------------------------------
-# Do graphs of mentions
+# Do graphs of totals/averages from hashtags or mentions
 # -----------------------------------------------------------------------------------
-
-# Example data from summary files in NP file:
-# month,year,mention,count,total,mean
-# 4,2021,@run,1,6,5.5
-# 4,2021,@words,6,6850,1141.7
-# 4,2021,@work,22,191,8.7
-
-# From a file: read and parse all at once  (info: https://www.rubyguides.com/2018/10/parse-csv-ruby/)
-# (There are other 'Date' and 'DateTime' converters.)
-begin
-  mentions_table = CSV.parse(File.read(IO_DIR + '/weekly_stats.md'), headers: true, converters: :all)
-  puts "Read #{mentions_table.size} items from mentions.csv into mentions_table"
-  # TODO: Read from all matching files and write into a new single file to do what we need
-rescue StandardError => e
-  puts "ERROR: '#{e.exception.message}' when reading #{IO_DIR}/mentions.csv".colorize(WarningColour)
-end
 
 gp_commands = 'mentions.gp'
 gp_call_result = system("#{GP_EXEC_DIR} '#{gp_commands}'")

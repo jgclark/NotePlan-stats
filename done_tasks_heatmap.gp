@@ -10,7 +10,7 @@
 #   Mon, tasks completed for that day in the week, ...
 #   Tues, tasks completed for that day in the week, ...
 #   ...
-# JGC, 29.11.2020
+# JGC, 29.11.2020, last updated 18.11.2021
 
 # To get the X labels only every 4th time is flippipn' complicated..
 # Method worked out by @theozh at https://stackoverflow.com/questions/64834593/how-to-control-how-many-xlabels-are-printed-in-gnuplot
@@ -26,13 +26,15 @@ set term png size 800, 260 font "Avenir,9"
 
 set datafile separator comma
 # set locale "English_US"    # if not already set, to correctly interpret the month abbreviations. NOT WORKING.
+
 # set gradient through a 'palette', which are complex to understand (see manual p.180)
 # useful discussion at https://stackoverflow.com/questions/64813524/set-color-to-grey-for-points-below-some-cutoff-when-plotting-with-palette-in-gnu
 # also pointing to 'set palette defined ...' possibility rather than 'rgbformula'
 # a few demos at http://gnuplot.sourceforge.net/demo/pm3dcolors.html
-# TODO set other palettes for further plots
+# set palette rgbformula 2,-9,2 # = RGB: x, -sqrt(x), x = white to purple?
 # set palette rgbformula -9,2,-9 # = RGB: -sqrt(x), x, -sqrt(x) = white to green
-set palette rgbformula 2,-9,2 # = RGB: x, -sqrt(x), x = white to purple?
+set palette defined ( 0 'white', 0.4 'green', 1.0 'dark-green' ) # white to green more quickly
+
 # settings for colour box (key, really)
 set cbrange [0:*]
 set cblabel "Completed tasks (Goals + Projects + Other)"
