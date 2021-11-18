@@ -1,6 +1,9 @@
 # CHANGELOG
 
 ## for npStats
+### v1.6.0, 18.11.2021
+- [Fix] task_done_dates.csv now includes items from daily calendar notes
+
 ### v1.5.4, 10.3.2021
 - [Fix] task_done_dates.csv no longer includes future dates
 

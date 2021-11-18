@@ -1,7 +1,7 @@
 #!/usr/bin/env ruby
 #-------------------------------------------------------------------------------
 # NotePlan Task Stats Summariser
-# (c) JGC, v1.5.4, 10.3.2021
+# (c) JGC, v1.6.0, 18.11.2021
 #-------------------------------------------------------------------------------
 # Script to give stats on various tags in NotePlan's Notes and Daily files.
 #
@@ -10,15 +10,18 @@
 # - counts open tasks, open undated tasks, done tasks, future tasks
 # - breaks down by Goals/Projects/Other
 # - ignores tasks in a #template section
-# It writes output to screen and to a CSV file
+#
+# It writes output to screen and to CSV files:
+# - current summary of all G/P/O open/done/future to task_stats.csv
+# - re-calculated list of all done tasks by date to task_done_dates.csv
 #
 # Configuration:
-# - Requires gems colorize & optparse (> gem install colorize optparse)
+# - Requires gems colorize & optparse ('gem install colorize optparse')
 #-------------------------------------------------------------------------------
 # For more information please see the GitHub repository:
 #   https://github.com/jgclark/NotePlan-stats/
 #-------------------------------------------------------------------------------
-VERSION = '1.5.4'.freeze
+VERSION = '1.6.0'.freeze
 
 require 'date'
 require 'time'
@@ -120,8 +123,8 @@ class NPCalendar
         # Counting number of open, waiting, done tasks etc.
         if line =~ /\[x\]/
           @done += 1 # count up the completed task
-          # Also make a note of the done date in the $done_dates array
-          done_date_string = line.scan(/@done\((\d{4}\-\d{2}\-\d{2})/).join('')
+          # Also make a note of the done date in the $cal_done_dates array
+          done_date_string = line.scan(/@done\((\d{4}\-\d{2}\-\d{2}.*)/).join('')
           if done_date_string.empty?
             puts "    Warning: no @done(...) date found in '#{line.chomp}'".colorize(WarningColour) if $verbose
           else
@@ -231,7 +234,7 @@ class NPNote
           @done += 1
           # For each done task, make a note of the done date in the $done_dates array
           # (But sometimes done date is missing; if so, have to ignore.)
-          line_scan = line.scan(/@done\((\d{4}\-\d{2}\-\d{2})/).join('')
+          line_scan = line.scan(/@done\((\d{4}\-\d{2}\-\d{2}).*/).join('')
           # puts "  #{line_scan} (#{line_scan.class})" if $verbose
           if line_scan.empty?
             puts "    Warning: no @done(...) date found in '#{line.chomp}'".colorize(WarningColour) if $verbose
@@ -350,7 +353,6 @@ if i.positive? # if we have some notes to work on ...
   activeNotes.each do |nn|
     n = notes[nn]
     ddh = n.done_dates
-    # .nil? ? [] : @done_dates[n]
     # puts n.filename, ddh
     if n.is_goal
       tgn += 1
@@ -382,60 +384,10 @@ else
   puts "Warning: No matching active note files found.\n".colorize(WarningColour)
 end
 
-#---------------------------------------------------------------------------------------
-# Summarise the done_dates:
-# - @done_dates from each of the Note files, for each type Goal/Project/Other
-# - for now ignore the $done_dates from the Daily 'calendar' files
-
-# sort the hashes, which turns them into arrays
-ddga = tgdh.sort
-ddpa = tpdh.sort
-ddoa = todh.sort
-# earliest_orddate = ddga[0][0].to_i < ddpa[0][0].to_i ? ddga[0][0].to_i : ddpa[0][0].to_i
-# earliest_orddate = earliest_orddate.to_i < ddoa[0][0].to_i ? earliest_orddate.to_i : ddoa[0][0].to_i
-# ord_date_today = TODAYS_DATE.strftime('%Y%j').to_i
-# puts "  #{earliest_orddate}, #{earliest_orddate.class}"
-# now append these three arrays onto a single one, with data in correct one of three columns,
-# with the key (the ordinal date) in column 0
-done_dates = Array.new { Array.new(4, 0) }
-ddga.each do |aa|
-  done_dates += [[aa[0], aa[1], 0, 0]]
-end
-ddpa.each do |aa|
-  done_dates += [[aa[0], 0, aa[1], 0]]
-end
-ddoa.each do |aa|
-  done_dates += [[aa[0], 0, 0, aa[1]]]
-end
-dds = done_dates.sort
-# Now compact the array summing items with the same key
-previous_key = 0
-previous_col1 = 0
-previous_col2 = 0
-previous_col3 = 0
-i = 0
-dds.each do |row|
-  if previous_key == row[0]
-    row[1] += previous_col1
-    row[2] += previous_col2
-    row[3] += previous_col3
-    dds[i - 1][0] = 0 # mark for deletion. Trying to delete in place mucks up the loop positioning
-  end
-  previous_key = row[0]
-  previous_col1 = row[1]
-  previous_col2 = row[2]
-  previous_col3 = row[3]
-  i += 1
-end
-# now remove the row set to delete
-dds.delete_if { |row| row[0] == 0 }
-done_dates = dds
-# TODO: change back to using YYYY-MM-DD dates
 
 #===============================================================================
 # Calendar stats:
 # add these onto previous 'other' task counts
-#===============================================================================
 calFiles = [] # to hold all relevant calendar objects
 
 unless options[:no_calendar]
@@ -489,38 +441,108 @@ puts "Project\t#{tpn}\t#{tpd}\t#{tpo}\t#{tpu}\t#{tpw}\t#{tpf}"
 puts "Other\t#{ton}\t#{tod}\t#{too}\t#{tou}\t#{tow}\t#{tof}"
 puts "TOTAL\t#{tn}\t#{td}\t#{to}\t#{tu}\t#{tw}\t#{tf}".colorize(TotalColour)
 
-# Append results to CSV files (unless --nofile option given)
-return if options[:no_file]
+#-------------------------------------------------------------------------
+# Write out new summary stats as a CSV line to file (unless --nofile option given)
+# Append results to CSV files
 
-begin
-  output = format('%s,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d',
-                  time_now_format, tgn, tpn, ton,
-                  tgd, tgo, tgu, tgw, tgf,
-                  tpd, tpo, tpu, tpw, tpf,
-                  tod, too, tou, tow, tof,
-                  td, to, tu, tw, tf)
-  filepath = OUTPUT_DIR + '/task_stats.csv'
-  f = File.open(filepath, 'a') # append
-  f.puts output
-  f.close
-  puts "Written this summary to #{OUTPUT_DIR}/task_stats.csv"
-
-  filepath = OUTPUT_DIR + '/task_done_dates.csv'
-  f = File.open(filepath, 'w') # overwrite
-  total_done_count = 0
-  f.puts 'Date,Goals,Projects,Others' # headers
-  done_dates.each do |d|
-    date_temp = Date.strptime(d[0], '%Y%j') # we only want the first item, but don't know why it needs to be first of the first
-    # ignore this date if its in the future
-    next if date_temp >= TODAYS_DATE
-
-    # convert date from ordinal back to YYYY-MM-DD
-    date_YMD = date_temp.strftime('%Y-%m-%d')
-    f.puts "#{date_YMD},#{d[1]},#{d[2]},#{d[3]}"
-    total_done_count += d[1] + d[2] + d[3]
+if !options[:no_file]
+  begin
+    output = format('%s,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d',
+                    time_now_format, tgn, tpn, ton,
+                    tgd, tgo, tgu, tgw, tgf,
+                    tpd, tpo, tpu, tpw, tpf,
+                    tod, too, tou, tow, tof,
+                    td, to, tu, tw, tf)
+    filepath = OUTPUT_DIR + '/task_stats.csv'
+    f = File.open(filepath, 'a') # append
+    f.puts output
+    f.close
+    puts "Written this summary to #{OUTPUT_DIR}/task_stats.csv"
+  rescue StandardError => e
+    puts "ERROR: Hit #{e.exception.message} when writing out summary to #{filepath}".colorize(WarningColour)
   end
-  f.close
-  puts "\nAlso written summary of when the #{total_done_count} tasks were completed to #{OUTPUT_DIR}/task_done_dates.csv"
-rescue StandardError => e
-  puts "ERROR: Hit #{e.exception.message} when writing out summary to #{filepath}".colorize(WarningColour)
+end
+
+#===============================================================================
+# Summarise the done_dates from each of the Note files, for each type Goal/Project/Other
+
+# sort the hashes, which turns them into arrays
+ddga = tgdh.sort
+ddpa = tpdh.sort
+ddoa = todh.sort
+# earliest_orddate = ddga[0][0].to_i < ddpa[0][0].to_i ? ddga[0][0].to_i : ddpa[0][0].to_i
+# earliest_orddate = earliest_orddate.to_i < ddoa[0][0].to_i ? earliest_orddate.to_i : ddoa[0][0].to_i
+# ord_date_today = TODAYS_DATE.strftime('%Y%j').to_i
+# puts "  #{earliest_orddate}, #{earliest_orddate.class}"
+
+# now append these three arrays onto a single one, with data in correct one of three columns,
+# with the key (the ordinal date) in column 0
+done_dates = Array.new { Array.new(4, 0) }
+ddga.each do |aa|
+  done_dates += [[aa[0], aa[1], 0, 0]]
+end
+ddpa.each do |aa|
+  done_dates += [[aa[0], 0, aa[1], 0]]
+end
+ddoa.each do |aa|
+  done_dates += [[aa[0], 0, 0, aa[1]]]
+end
+
+# Now do similarly for $cal_done_dates (all go just to the 'other' category)
+cdo = 0
+$cal_done_dates.each do |cdd|
+  cdo += cdd[1]
+  done_dates += [[cdd[0], 0, 0, cdd[1]]]
+end
+puts "\nFound #{cdo} done tasks from #{$cal_done_dates.size} daily notes" if $verbose
+
+dds = done_dates.sort
+# Now compact the array summing items with the same key
+previous_key = 0
+previous_col1 = 0
+previous_col2 = 0
+previous_col3 = 0
+i = 0
+dds.each do |row|
+  if previous_key == row[0]
+    row[1] += previous_col1
+    row[2] += previous_col2
+    row[3] += previous_col3
+    # mark this row for deletion. (Trying to delete in place mucks up the loop positioning.)
+    dds[i - 1][0] = 0 
+  end
+  previous_key = row[0]
+  previous_col1 = row[1]
+  previous_col2 = row[2]
+  previous_col3 = row[3]
+  i += 1
+end
+# now remove the row set to delete
+dds.delete_if { |row| row[0] == 0 }
+done_dates = dds
+
+#-------------------------------------------------------------------------
+# Write out set of all done task stats per date as CSV file (if writing to files)
+
+if !options[:no_file]
+  begin
+    filepath = OUTPUT_DIR + '/task_done_dates.csv'
+    f = File.open(filepath, 'w') # overwrite
+    total_done_count = 0
+    f.puts 'Date,Goals,Projects,Others' # headers
+    done_dates.each do |d|
+      date_temp = Date.strptime(d[0], '%Y%j') # we only want the first item, but don't know why it needs to be first of the first
+      # ignore this date if its in the future
+      next if date_temp >= TODAYS_DATE
+
+      # convert date from ordinal back to YYYY-MM-DD
+      date_YMD = date_temp.strftime('%Y-%m-%d')
+      f.puts "#{date_YMD},#{d[1]},#{d[2]},#{d[3]}"
+      total_done_count += d[1] + d[2] + d[3]
+    end
+    f.close
+    puts "Written summary of when the #{total_done_count} tasks were completed to #{OUTPUT_DIR}/task_done_dates.csv"
+  rescue StandardError => e
+    puts "ERROR: Hit #{e.exception.message} when writing out summary to #{filepath}".colorize(WarningColour)
+  end
 end
