@@ -50,7 +50,7 @@ NP_NOTE_DIR = "#{np_base_dir}/Notes".freeze
 NP_CALENDAR_DIR = "#{np_base_dir}/Calendar".freeze
 # TODO: Check whether Summaries directory exists. If not, create it.
 OUTPUT_DIR = if Dir.exist?(CLOUDKIT_DIR) && Dir[File.join(CLOUDKIT_DIR, '**', '*')].count { |file| File.file?(file) } > 1
-               "#{ENV['NPEXTRAS']}" # save in user-specified directory as it won't be sync'd in a CloudKit directory
+               ENV['NPEXTRAS'] # save in user-specified directory as it won't be sync'd in a CloudKit directory
              else
                "#{np_base_dir}/Summaries".freeze # but otherwise can store in Summaries/ directory in NP
              end
@@ -190,7 +190,7 @@ begin
   Dir.glob(["#{the_year_str}*.txt", "#{the_year_str}*.md"]).sort.each do |this_file|
     # ignore this file if the directory starts with '@'
     # (as can't get file glob including [^@] to work)
-    next unless this_file =~ /^[^@]/ # 
+    next unless this_file =~ /^[^@]/
 
     # puts "#{this_file} size #{fsize}" if $verbose.positive?
     # ignore this file if it's empty
@@ -323,7 +323,6 @@ if n.positive?
     i = 0
     m_sum = 0
     m_count = 0
-    m_avg = 0.0
     while i < ma.size
       mak = ma[i][0]
       mav = ma[i][1]
@@ -405,7 +404,7 @@ if n.positive?
     m_sum_file += ",#{m_sum[mi]}"
     mi += 1
   end
-  puts "#{m_sum_screen}".colorize(TotalColour)
+  puts m_sum_screen.colorize(TotalColour)
   f.puts m_sum_file if options[:write_file] # also write output to file
   f.close if options[:write_file]
 

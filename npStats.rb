@@ -49,7 +49,7 @@ NP_CALENDAR_DIR = "#{NP_BASE_DIR}/Calendar".freeze
 NP_NOTE_DIR = "#{NP_BASE_DIR}/Notes".freeze
 # NB: a user-set directory, not the usual CloudKit directory, as non-NotePlan folders won't sync from it.
 OUTPUT_DIR = if Dir.exist?(CLOUDKIT_DIR) && Dir[File.join(CLOUDKIT_DIR, '**', '*')].count { |file| File.file?(file) } > 1
-               "#{ENV['NPEXTRAS']}" # save in user-specified directory as it won't be sync'd in a CloudKit directory
+               ENV['NPEXTRAS'] # save in user-specified directory as it won't be sync'd in a CloudKit directory
              else
                "#{np_base_dir}/Summaries".freeze # but otherwise can store in Summaries/ directory in NP
              end
@@ -124,7 +124,7 @@ class NPCalendar
         if line =~ /\[x\]/
           @done += 1 # count up the completed task
           # Also make a note of the done date in the $cal_done_dates array
-          done_date_string = line.scan(/@done\((\d{4}\-\d{2}\-\d{2}.*)/).join('')
+          done_date_string = line.scan(/@done\((\d{4}-\d{2}-\d{2}.*)/).join('')
           if done_date_string.empty?
             puts "    Warning: no @done(...) date found in '#{line.chomp}'".colorize(WarningColour) if $verbose
           else
@@ -133,12 +133,12 @@ class NPCalendar
             # puts "    #{completed_date}: #{c_d_ordinal} #{$done_dates[c_d_ordinal]}" if $verbose
             $cal_done_dates[c_d_ordinal] += 1
           end
-        elsif line =~ /^\s*\*\s+/ && line !~ /\[\-\]/ # a task, but not cancelled (or by implication not completed)
+        elsif line =~ /^\s*\*\s+/ && line !~ /\[-\]/ # a task, but not cancelled (or by implication not completed)
           if line =~ /#waiting/
             @waiting += 1 # count this as waiting not open
           else
             scheduledDate = nil
-            line.scan(/>(\d\d\d\d\-\d\d-\d\d)/) { |m| scheduledDate = Date.parse(m.join) }
+            line.scan(/>(\d\d\d\d-\d\d-\d\d)/) { |m| scheduledDate = Date.parse(m.join) }
             if !scheduledDate.nil?
               if scheduledDate > TODAYS_DATE
                 @future += 1 # count this as future
@@ -224,7 +224,7 @@ class NPNote
         line.scan(/^(#+)\s/) { |m| line_header_level = m[0].length }
         if line_header_level.positive?
           # is this a same- or higher-level header? If so take us out of a #template section
-          template_section_header_level = 0 if (line_header_level > 0) && (line_header_level <= template_section_header_level)
+          template_section_header_level = 0 if line_header_level.positive? && line_header_level <= template_section_header_level
           # see if this line takes us into a #template section
           template_section_header_level = line_header_level if line =~ /#template/
         end
@@ -234,7 +234,7 @@ class NPNote
           @done += 1
           # For each done task, make a note of the done date in the $done_dates array
           # (But sometimes done date is missing; if so, have to ignore.)
-          line_scan = line.scan(/@done\((\d{4}\-\d{2}\-\d{2}).*/).join('')
+          line_scan = line.scan(/@done\((\d{4}-\d{2}-\d{2}).*/).join('')
           # puts "  #{line_scan} (#{line_scan.class})" if $verbose
           if line_scan.empty?
             puts "    Warning: no @done(...) date found in '#{line.chomp}'".colorize(WarningColour) if $verbose
@@ -243,14 +243,14 @@ class NPNote
             c_d_ordinal = completed_date.strftime('%Y%j')
             @done_dates[c_d_ordinal] += 1
           end
-        elsif line =~ /^\s*\*\s+/ && line !~ /\[\-\]/ # a task, but not cancelled (or by implication not completed)
+        elsif line =~ /^\s*\*\s+/ && line !~ /\[-\]/ # a task, but not cancelled (or by implication not completed)
           unless template_section_header_level.positive?
             # we're not in a #template so continue processing
             if line =~ /#waiting/
               @waiting += 1 # count this as waiting not open
             else
               scheduledDate = nil
-              line.scan(/>(\d\d\d\d\-\d\d-\d\d)/) { |m| scheduledDate = Date.parse(m.join) }
+              line.scan(/>(\d{4}-\d{2}-\d{2})/) { |m| scheduledDate = Date.parse(m.join) }
               if !scheduledDate.nil?
                 if scheduledDate > TODAYS_DATE
                   @future += 1 # count this as future
@@ -384,7 +384,6 @@ else
   puts "Warning: No matching active note files found.\n".colorize(WarningColour)
 end
 
-
 #===============================================================================
 # Calendar stats:
 # add these onto previous 'other' task counts
@@ -411,7 +410,6 @@ unless options[:no_calendar]
 
   if n.positive? # if we have some notes to work on ...
     calFiles.each do |cal|
-
       # count tasks
       tod += cal.done
       too += cal.open
@@ -445,7 +443,7 @@ puts "TOTAL\t#{tn}\t#{td}\t#{to}\t#{tu}\t#{tw}\t#{tf}".colorize(TotalColour)
 # Write out new summary stats as a CSV line to file (unless --nofile option given)
 # Append results to CSV files
 
-if !options[:no_file]
+unless options[:no_file]
   begin
     output = format('%s,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d',
                     time_now_format, tgn, tpn, ton,
@@ -509,7 +507,7 @@ dds.each do |row|
     row[2] += previous_col2
     row[3] += previous_col3
     # mark this row for deletion. (Trying to delete in place mucks up the loop positioning.)
-    dds[i - 1][0] = 0 
+    dds[i - 1][0] = 0
   end
   previous_key = row[0]
   previous_col1 = row[1]
@@ -518,13 +516,13 @@ dds.each do |row|
   i += 1
 end
 # now remove the row set to delete
-dds.delete_if { |row| row[0] == 0 }
+dds.delete_if { |row| row[0].zero? }
 done_dates = dds
 
 #-------------------------------------------------------------------------
 # Write out set of all done task stats per date as CSV file (if writing to files)
 
-if !options[:no_file]
+unless options[:no_file]
   begin
     filepath = OUTPUT_DIR + '/task_done_dates.csv'
     f = File.open(filepath, 'w') # overwrite

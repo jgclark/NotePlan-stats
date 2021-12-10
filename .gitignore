@@ -67,3 +67,4 @@ task_stats.csv
 .vscode/launch.json
 *.code-workspace
 *.old
+.history/**/*.*

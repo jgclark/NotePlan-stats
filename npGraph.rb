@@ -74,16 +74,16 @@ USER_DIR = ENV['HOME'] # pull home directory from environment
 CLOUDKIT_DIR = "#{USER_DIR}/Library/Containers/co.noteplan.NotePlan3/Data/Library/Application Support/co.noteplan.NotePlan3".freeze
 # NB: a user-set directory, not the usual CloudKit directory, as non-NotePlan folders won't sync from it.
 IO_DIR = if Dir.exist?(CLOUDKIT_DIR) && Dir[File.join(CLOUDKIT_DIR, '**', '*')].count { |file| File.file?(file) } > 1
-           "#{ENV['NPEXTRAS']}" # save in user-specified directory as it won't be sync'd in a CloudKit directory
+           ENV['NPEXTRAS'] # save in user-specified directory as it won't be sync'd in a CloudKit directory
          else
            "#{np_base_dir}/Summaries".freeze # but otherwise can store in Summaries/ directory in NP
          end
 # Allow for both M1 and Intel versions of Homebrew
 GP_EXEC_DIR = if Dir.exist?("/opt/homebrew/bin")
-    "/opt/homebrew/bin/gnuplot"
-  else 
-    "/usr/local/bin/gnuplot"
-  end
+                "/opt/homebrew/bin/gnuplot"
+              else
+                "/usr/local/bin/gnuplot"
+              end
 
 # User-settable Constant Definitions
 DATE_FORMAT = '%d.%m.%y'.freeze
@@ -288,6 +288,7 @@ stats_table.each do |st| # FIXME: can be nil with missing data?
   # puts "working out added for #{st}"
   d = Date.strptime(st[0][0..10], "%d %b %Y") # ignore time portion of datetime string
   next unless d >= start_date
+
   addedh.store(d.to_s, [st[4] + st[5] + st[6] + st[7] + st[8] - last_gt,
                         st[9] + st[10] + st[11] + st[12] + st[13] - last_pt,
                         st[14] + st[15] + st[16] + st[17] + st[18] - last_ot])
@@ -350,7 +351,7 @@ end
 # NOTE: week starting Mondays. Days in Jan before Monday are in week 0.
 
 # Create new data structure, reusing data doneh hash from above
-net_grida = Array.new(DONE_PERIOD_WEEKS + 1) { Array.new(8) {0} } # extra week to allow for data not starting on a Monday
+net_grida = Array.new(DONE_PERIOD_WEEKS + 1) { Array.new(8) { 0 } } # extra week to allow for data not starting on a Monday
 # populate first week specially with week of first data entry, as it might not fall on week start
 start_date = TODAYS_DATE - (DONE_PERIOD_WEEKS * 7) + 1 # +1 to get past first day which will always be odd as doing net
 week_number = start_date.strftime('%W').to_i # rubocop:disable Lint/UselessAssignment
@@ -414,7 +415,7 @@ puts 'ERROR: Hit problem when creating graphs using gnuplot'.colorize(WarningCol
 # NOTE: week starting Mondays. Days in Jan before Monday are in week 0.
 
 # Create new data structure, reusing data doneh hash from above
-done_grida = Array.new(DONE_PERIOD_WEEKS + 1) { Array.new(8) {0} } # extra week to allow for data not starting on a Monday
+done_grida = Array.new(DONE_PERIOD_WEEKS + 1) { Array.new(8) { 0 } } # extra week to allow for data not starting on a Monday
 # populate first week specially with week of first data entry, as it might not fall on week start
 start_date = TODAYS_DATE - (DONE_PERIOD_WEEKS * 7) + 1 # +1 to get past first day which will always be odd as doing net
 week_number = start_date.strftime('%W').to_i # rubocop:disable Lint/UselessAssignment
@@ -488,7 +489,6 @@ gp_call_result = system("#{GP_EXEC_DIR} '#{gp_commands}'")
 puts 'ERROR: Hit problem when creating graphs using gnuplot'.colorize(WarningColour) unless gp_call_result
 
 exit
-
 
 #=================================================================================
 # Earlier versions, using GoogleCharts gem (unmaintained it seems)
