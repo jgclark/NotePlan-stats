@@ -1,7 +1,7 @@
 #!/usr/bin/env ruby
 #-------------------------------------------------------------------------------
 # NotePlan Task Stats Summariser
-# (c) JGC, v1.6.0, 18.11.2021
+# (c) JGC, v1.6.1, 31.12.2021
 #-------------------------------------------------------------------------------
 # Script to give stats on various tags in NotePlan's Notes and Daily files.
 #
@@ -21,7 +21,7 @@
 # For more information please see the GitHub repository:
 #   https://github.com/jgclark/NotePlan-stats/
 #-------------------------------------------------------------------------------
-VERSION = '1.6.0'.freeze
+VERSION = '1.6.1'.freeze
 
 require 'date'
 require 'time'
@@ -96,17 +96,17 @@ class NPCalendar
   attr_reader :tags
   attr_reader :filename
   attr_reader :is_future
-  attr_reader :open
+  attr_reader :open_overdue
   attr_reader :waiting
   attr_reader :done
   attr_reader :future
-  attr_reader :undated
+  attr_reader :open_undated
 
   def initialize(this_file, id)
     # initialise instance variables (that persist with the class instance)
     @filename = this_file
     @id = id
-    @open = @waiting = @done = @future = @undated = 0
+    @open_overdue = @waiting = @done = @future = @open_undated = 0
     @is_future = false
     header = ''
 
@@ -137,16 +137,21 @@ class NPCalendar
           if line =~ /#waiting/
             @waiting += 1 # count this as waiting not open
           else
+            # Ideally, find inbound copy of a scheduled date (<date) and ignore
+            # However, there's no consistency in my data for when <date and >date are used, so won't do this now
+            # inboundDate = nil
+            # line.scan(/\s<(\d{4}-\d{2}-\d{2})/) { |m| inboundDate = Date.parse(m.join) }
+            # find if this includes a scheduled date
             scheduledDate = nil
-            line.scan(/>(\d\d\d\d-\d\d-\d\d)/) { |m| scheduledDate = Date.parse(m.join) }
+            line.scan(/\s>(\d{4}-\d{2}-\d{2})/) { |m| scheduledDate = Date.parse(m.join) }
             if !scheduledDate.nil?
               if scheduledDate > TODAYS_DATE
                 @future += 1 # count this as future
               else
-                @open += 1 # count this as dated open (overdue)
+                @open_overdue += 1 # count this as dated open (overdue)
               end
             else
-              @open += 1 # count this as undated open
+              @open_undated += 1 # count this as undated open
             end
           end
         end
@@ -171,11 +176,11 @@ class NPNote
   attr_reader :is_project
   attr_reader :is_goal
   attr_reader :metadata_line
-  attr_reader :open
+  attr_reader :open_overdue
   attr_reader :waiting
   attr_reader :done
   attr_reader :future
-  attr_reader :undated
+  attr_reader :open_undated
   attr_reader :filename
   attr_reader :done_dates
 
@@ -187,7 +192,7 @@ class NPNote
     @is_active = true # assume note is active
     @is_completed = false
     @is_cancelled = false
-    @open = @waiting = @done = @future = @undated = 0
+    @open_overdue = @waiting = @done = @future = @open_undated = 0
     @completed_date = nil
     @is_project = false
     @is_goal = false
@@ -243,22 +248,28 @@ class NPNote
             c_d_ordinal = completed_date.strftime('%Y%j')
             @done_dates[c_d_ordinal] += 1
           end
-        elsif line =~ /^\s*\*\s+/ && line !~ /\[-\]/ # a task, but not cancelled (or by implication not completed)
+        elsif line =~ /^\s*\*\s+/ && line !~ /\[-\]/ # a task, but not cancelled (and by implication not completed)
           unless template_section_header_level.positive?
             # we're not in a #template so continue processing
             if line =~ /#waiting/
               @waiting += 1 # count this as waiting not open
             else
+              # Ideally, find inbound copy of a scheduled date (<date) and ignore
+              # However, there's no consistency in my data for when <date and >date are used, so won't do this now
+              # inboundDate = nil
+              # line.scan(/\s<(\d{4}-\d{2}-\d{2})/) { |m| inboundDate = Date.parse(m.join) }
+
+              # find if this includes a scheduled date
               scheduledDate = nil
-              line.scan(/>(\d{4}-\d{2}-\d{2})/) { |m| scheduledDate = Date.parse(m.join) }
+              line.scan(/\s>(\d{4}-\d{2}-\d{2})/) { |m| scheduledDate = Date.parse(m.join) }
               if !scheduledDate.nil?
                 if scheduledDate > TODAYS_DATE
                   @future += 1 # count this as future
                 else
-                  @open += 1 # count this as dated open (overdue)
+                  @open_overdue += 1 # count this as dated open (overdue)
                 end
               else
-                @undated += 1 # count this as undated open
+                @open_undated += 1 # count this as undated open
               end
             end
           end
@@ -322,7 +333,7 @@ todh = Hash.new(0)
 
 # Read metadata for all note files in the NotePlan directory
 # (and sub-directories from v2.5, ignoring special ones starting '@')
-i = 0 # number of notes to work on
+notes_to_work_on = 0 # number of notes to work on
 begin
   Dir.chdir(NP_NOTE_DIR)
   Dir.glob(['**/*.txt', '**/*.md']).each do |this_file|
@@ -330,10 +341,10 @@ begin
     # ignore this file if it's empty
     next if File.zero?(this_file)
 
-    notes[i] = NPNote.new(this_file, i)
-    if notes[i].is_active
-      activeNotes.push(notes[i].id)
-      i += 1
+    notes[notes_to_work_on] = NPNote.new(this_file, notes_to_work_on)
+    if notes[notes_to_work_on].is_active
+      activeNotes.push(notes[notes_to_work_on].id)
+      notes_to_work_on += 1
     end
   end
 rescue StandardError => e
@@ -349,7 +360,7 @@ tou = tpu = tgu = 0
 tow = tpw = tgw = 0
 tof = tpf = tgf = 0
 
-if i.positive? # if we have some notes to work on ...
+if notes_to_work_on.positive? # if we have some notes to work on ...
   activeNotes.each do |nn|
     n = notes[nn]
     ddh = n.done_dates
@@ -358,24 +369,24 @@ if i.positive? # if we have some notes to work on ...
       tgn += 1
       tgd += n.done
       tgdh = ddh.merge!(tgdh) { |_key, oldval, newval| newval + oldval }
-      tgo += n.open
-      tgu += n.undated
+      tgo += n.open_overdue
+      tgu += n.open_undated
       tgw += n.waiting
       tgf += n.future
     elsif n.is_project
       tpn += 1
       tpd += n.done
       tpdh = ddh.merge!(tpdh) { |_key, oldval, newval| newval + oldval }
-      tpo += n.open
-      tpu += n.undated
+      tpo += n.open_overdue
+      tpu += n.open_undated
       tpw += n.waiting
       tpf += n.future
     else
       ton += 1
       tod += n.done
       todh = ddh.merge!(todh) { |_key, oldval, newval| newval + oldval }
-      too += n.open
-      tou += n.undated
+      too += n.open_overdue
+      tou += n.open_undated
       tow += n.waiting
       tof += n.future
     end
@@ -392,7 +403,7 @@ calFiles = [] # to hold all relevant calendar objects
 unless options[:no_calendar]
   # Read metadata for all note files in the NotePlan directory
   # (and sub-directories from v2.5, ignoring special ones starting '@')
-  n = 0 # number of calendar entries to work on
+  cal_entries_to_work_on = 0 # number of calendar entries to work on
   begin
     Dir.chdir(NP_CALENDAR_DIR)
     Dir.glob(['**/*.txt', '**/*.md']).each do |this_file|
@@ -401,19 +412,19 @@ unless options[:no_calendar]
       # ignore this file if it's empty
       next if File.zero?(this_file)
 
-      calFiles[n] = NPCalendar.new(this_file, n)
-      n += 1
+      calFiles[cal_entries_to_work_on] = NPCalendar.new(this_file, cal_entries_to_work_on)
+      cal_entries_to_work_on += 1
     end
   rescue StandardError => e
     puts "ERROR: Hit #{e.exception.message} when reading calendar directory".colorize(WarningColour)
   end
 
-  if n.positive? # if we have some notes to work on ...
+  if cal_entries_to_work_on.positive? # if we have some notes to work on ...
     calFiles.each do |cal|
       # count tasks
       tod += cal.done
-      too += cal.open
-      tou += cal.undated
+      too += cal.open_overdue
+      tou += cal.open_undated
       tow += cal.waiting
       tof += cal.future
     end
@@ -506,7 +517,7 @@ dds.each do |row|
     row[1] += previous_col1
     row[2] += previous_col2
     row[3] += previous_col3
-    # mark this row for deletion. (Trying to delete in place mucks up the loop positioning.)
+    # Mark this row for deletion by setting to zero. (Trying to delete in place mucks up the loop positioning.)
     dds[i - 1][0] = 0
   end
   previous_key = row[0]
@@ -516,7 +527,7 @@ dds.each do |row|
   i += 1
 end
 # now remove the row set to delete
-dds.delete_if { |row| row[0].zero? }
+dds.delete_if { |row| row[0] == 0 } # .zero? fails to work here for some reason
 done_dates = dds
 
 #-------------------------------------------------------------------------
@@ -524,6 +535,7 @@ done_dates = dds
 
 unless options[:no_file]
   begin
+    # FIXME: something making last weekend not get written out early Mon morning
     filepath = OUTPUT_DIR + '/task_done_dates.csv'
     f = File.open(filepath, 'w') # overwrite
     total_done_count = 0

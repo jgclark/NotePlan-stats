@@ -1,6 +1,10 @@
 # CHANGELOG
 
 ## for npStats
+### v1.6.1, 31.12.2021
+- [Fix] in calendar notes, many tasks were counted as being 'overdue' when they should be counted as overdue.
+- [Change] code clean up
+
 ### v1.6.0, 18.11.2021
 - [Fix] task_done_dates.csv now includes items from daily calendar notes
 
