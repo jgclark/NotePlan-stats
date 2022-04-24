@@ -20,6 +20,7 @@
 # JGC, 30.10.2021
 
 FILENAME="/Users/jonathan/Dropbox/NPSummaries/weekly_stats.md"
+# FILENAME="/Users/jonathan/Library/Containers/co.noteplan.NotePlan3/Data/Library/Application\ Support/co.noteplan.NotePlan3/Notes/weekly_stats.md" # FIXME: doesn't work with or without backslash
 todays_date=system("date +%d.%m.%Y")
 
 set term png size 800, 360 font "arial,11"
