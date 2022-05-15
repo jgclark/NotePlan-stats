@@ -1,7 +1,7 @@
 #!/usr/bin/env ruby
 #-------------------------------------------------------------------------------
 # NotePlan Task Stats Summariser
-# (c) JGC, v1.6.1, 31.12.2021
+# (c) JGC, v1.6.2, 15.5.2022
 #-------------------------------------------------------------------------------
 # Script to give stats on various tags in NotePlan's Notes and Daily files.
 #
@@ -21,7 +21,7 @@
 # For more information please see the GitHub repository:
 #   https://github.com/jgclark/NotePlan-stats/
 #-------------------------------------------------------------------------------
-VERSION = '1.6.1'.freeze
+VERSION = '1.6.2'.freeze
 
 require 'date'
 require 'time'
@@ -61,11 +61,32 @@ $cal_done_dates = Hash.new(0) # Hash of dates, with new items defaulting to zero
 
 # Colours, using the colorization gem
 TotalColour = :light_yellow
-WarningColour = :light_red
+ErrorColour = :light_red
 
 #-------------------------------------------------------------------------
-# Function definitions
+# Helper functions
 #-------------------------------------------------------------------------
+
+def main_message_screen(message)
+  puts message.colorize(TotalColour)
+end
+
+def message_screen(message)
+  puts message
+end
+
+def log_message_screen(message)
+  puts message if $verbose
+end
+
+def error_message_screen(message)
+  puts message.colorize(ErrorColour)
+end
+
+def warning_message_screen(message)
+  puts message.colorize(ErrorColour) if $verbose
+end
+
 # Print multi-dimensional 'tables' of data prettily
 # from https://stackoverflow.com/questions/27317023/print-out-2d-array
 def print_table(table, margin_width = 2)
@@ -112,7 +133,7 @@ class NPCalendar
 
     # mark this as a future date if the filename YYYYMMDD part as a string is greater than DateToday in YYYYMMDD format
     @is_future = true if @filename[0..7] > DATE_TODAY_YYYYMMDD
-    puts "  initialising #{@filename}" if $verbose
+    log_message_screen("  initialising #{@filename}")
 
     # Open file and read in. We've already checked it's not empty.
     # NB: needs the encoding line when run from launchctl, otherwise you get US-ASCII invalid byte errors (basically the 'locale' settings are different)
@@ -126,11 +147,11 @@ class NPCalendar
           # Also make a note of the done date in the $cal_done_dates array
           done_date_string = line.scan(/@done\((\d{4}-\d{2}-\d{2}.*)/).join('')
           if done_date_string.empty?
-            puts "    Warning: no @done(...) date found in '#{line.chomp}'".colorize(WarningColour) if $verbose
+            warning_message_screen("    Warning: no @done(...) date found in '#{line.chomp}'")
           else
             completed_date = Date.strptime(done_date_string, '%Y-%m-%d') # we only want the first item, but don't know why it needs to be first of the first
             c_d_ordinal = completed_date.strftime('%Y%j')
-            # puts "    #{completed_date}: #{c_d_ordinal} #{$done_dates[c_d_ordinal]}" if $verbose
+            # log_message_screen("    #{completed_date}: #{c_d_ordinal} #{$cal_done_dates[c_d_ordinal]}")
             $cal_done_dates[c_d_ordinal] += 1
           end
         elsif line =~ /^\s*\*\s+/ && line !~ /\[-\]/ # a task, but not cancelled (or by implication not completed)
@@ -139,8 +160,6 @@ class NPCalendar
           else
             # Ideally, find inbound copy of a scheduled date (<date) and ignore
             # However, there's no consistency in my data for when <date and >date are used, so won't do this now
-            # inboundDate = nil
-            # line.scan(/\s<(\d{4}-\d{2}-\d{2})/) { |m| inboundDate = Date.parse(m.join) }
             # find if this includes a scheduled date
             scheduledDate = nil
             line.scan(/\s>(\d{4}-\d{2}-\d{2})/) { |m| scheduledDate = Date.parse(m.join) }
@@ -160,7 +179,7 @@ class NPCalendar
   rescue EOFError
     # this file has less than two lines, but we can ignore the problem for the stats
   rescue StandardError => e
-    puts "ERROR: Hit #{e.exception.message} when initialising #{@filename} in NPCalendar".colorize(WarningColour)
+    error_message_screen("ERROR: Hit #{e.exception.message} when initialising #{@filename} in NPCalendar")
   end
 end
 
@@ -201,7 +220,7 @@ class NPNote
     # initialise other variables (that don't need to persist with the class instance)
     headerLine = @metadata_line = nil
 
-    puts "  Initializing NPNote for #{this_file}" if $verbose
+    log_message_screen("  Initializing NPNote for #{this_file}")
     # Open file and read the first two lines
     File.open(this_file, 'r', encoding: 'utf-8') do |f|
       headerLine = f.readline
@@ -233,16 +252,16 @@ class NPNote
           # see if this line takes us into a #template section
           template_section_header_level = line_header_level if line =~ /#template/
         end
-        # puts "#{template_section_header_level}/#{line_header_level}: #{line.chomp}" if $verbose
+        # log_message_screen("#{template_section_header_level}/#{line_header_level}: #{line.chomp}")
         if line =~ /\[x\]/
           # a completed task (using [x] format)
           @done += 1
           # For each done task, make a note of the done date in the $done_dates array
           # (But sometimes done date is missing; if so, have to ignore.)
           line_scan = line.scan(/@done\((\d{4}-\d{2}-\d{2}).*/).join('')
-          # puts "  #{line_scan} (#{line_scan.class})" if $verbose
+          # log_message_screen("  #{line_scan} (#{line_scan.class})")
           if line_scan.empty?
-            puts "    Warning: no @done(...) date found in '#{line.chomp}'".colorize(WarningColour) if $verbose
+            warning_message_screen("    Warning: no @done(...) date found in '#{line.chomp}'")
           else
             completed_date = Date.strptime(line_scan, '%Y-%m-%d') # we only want the first item, but don't know why it needs to be first of the first
             c_d_ordinal = completed_date.strftime('%Y%j')
@@ -255,11 +274,8 @@ class NPNote
               @waiting += 1 # count this as waiting not open
             else
               # Ideally, find inbound copy of a scheduled date (<date) and ignore
-              # However, there's no consistency in my data for when <date and >date are used, so won't do this now
-              # inboundDate = nil
-              # line.scan(/\s<(\d{4}-\d{2}-\d{2})/) { |m| inboundDate = Date.parse(m.join) }
-
-              # find if this includes a scheduled date
+              # However, there's no consistency in my data for when <date and >date are used, so won't do this now.
+              # Find if this includes a scheduled date
               scheduledDate = nil
               line.scan(/\s>(\d{4}-\d{2}-\d{2})/) { |m| scheduledDate = Date.parse(m.join) }
               if !scheduledDate.nil?
@@ -279,7 +295,7 @@ class NPNote
   rescue EOFError
     # this file has less than two lines, but we can ignore the problem for the stats
   rescue StandardError => e
-    puts "ERROR: Hit #{e.exception.message} when initialising #{@filename} in NPNote".colorize(WarningColour)
+    error_message_screen("ERROR: Hit #{e.exception.message} when initialising #{@filename} in NPNote")
   end
 end
 
@@ -290,7 +306,7 @@ end
 # Setup program options
 options = {}
 opt_parser = OptionParser.new do |opts|
-  opts.banner = "NotePlan stats generator v #{VERSION}\nDetails at https://github.com/jgclark/NotePlan-stats/\nUsage: npStats.rb [options]"
+  opts.banner = "NotePlan stats generator v#{VERSION}\nDetails at https://github.com/jgclark/NotePlan-stats/\nUsage: npStats.rb [options]"
   opts.separator ''
   options[:verbose] = false
   options[:no_file] = false
@@ -299,7 +315,7 @@ opt_parser = OptionParser.new do |opts|
     options[:no_calendar] = true
   end
   opts.on('-h', '--help', 'Show help') do
-    puts opts
+    message_screen(opts)
     exit
   end
   opts.on('-n', '--nofile', 'Do not write summary to file') do
@@ -316,11 +332,11 @@ $verbose = options[:verbose]
 time_now = Time.now
 time_now_format = time_now.strftime(DATE_TIME_FORMAT)
 if options[:no_calendar]
-  puts "Creating stats at #{time_now_format} (ignoring daily calendar files):"
+  message_screen("Creating stats at #{time_now_format} (ignoring daily calendar files):")
 else
-  puts "Creating stats at #{time_now_format}:"
+  message_screen("Creating stats at #{time_now_format}:")
 end
-puts "  Writing output files to #{OUTPUT_DIR}/" unless options[:no_file]
+message_screen("  Writing output files to #{OUTPUT_DIR}/") unless options[:no_file]
 
 #=======================================================================================
 # Note stats
@@ -336,8 +352,7 @@ todh = Hash.new(0)
 notes_to_work_on = 0 # number of notes to work on
 begin
   Dir.chdir(NP_NOTE_DIR)
-  Dir.glob(['**/*.txt', '**/*.md']).each do |this_file|
-    next unless this_file =~ /^[^@]/ # as can't get file glob including [^@] to work
+  Dir.glob('[!@]*/**/*.{md,txt}').each do |this_file|
     # ignore this file if it's empty
     next if File.zero?(this_file)
 
@@ -348,7 +363,7 @@ begin
     end
   end
 rescue StandardError => e
-  puts "ERROR: Hit #{e.exception.message} when reading notes directory".colorize(WarningColour)
+  error_message_screen("ERROR: Hit #{e.exception.message} when reading notes directory")
 end
 
 # Count open (overdue) tasks, open undated, waiting, done tasks, future tasks
@@ -364,7 +379,7 @@ if notes_to_work_on.positive? # if we have some notes to work on ...
   activeNotes.each do |nn|
     n = notes[nn]
     ddh = n.done_dates
-    # puts n.filename, ddh
+    # log_message_screen(n.filename, ddh)
     if n.is_goal
       tgn += 1
       tgd += n.done
@@ -392,7 +407,7 @@ if notes_to_work_on.positive? # if we have some notes to work on ...
     end
   end
 else
-  puts "Warning: No matching active note files found.\n".colorize(WarningColour)
+  warning_message_screen("Warning: No matching active note files found.\n")
 end
 
 #===============================================================================
@@ -416,7 +431,7 @@ unless options[:no_calendar]
       cal_entries_to_work_on += 1
     end
   rescue StandardError => e
-    puts "ERROR: Hit #{e.exception.message} when reading calendar directory".colorize(WarningColour)
+    error_message_screen("ERROR: Hit #{e.exception.message} when reading calendar directory")
   end
 
   if cal_entries_to_work_on.positive? # if we have some notes to work on ...
@@ -429,7 +444,7 @@ unless options[:no_calendar]
       tof += cal.future
     end
   else
-    puts "Warning: No matching calendar files found.\n".colorize(WarningColour)
+    warning_message_screen("Warning: No matching calendar files found.\n")
   end
   puts
 end
@@ -443,12 +458,12 @@ tw = tow + tpw + tgw
 tf = tof + tpf + tgf
 
 # Show results on screen
-puts "From #{activeNotes.count} active notes:"
-puts "\tNotes\tDone\tOverdue\tUndated\tWaiting\tFuture".colorize(TotalColour)
-puts "Goals\t#{tgn}\t#{tgd}\t#{tgo}\t#{tgu}\t#{tgw}\t#{tgf}"
-puts "Project\t#{tpn}\t#{tpd}\t#{tpo}\t#{tpu}\t#{tpw}\t#{tpf}"
-puts "Other\t#{ton}\t#{tod}\t#{too}\t#{tou}\t#{tow}\t#{tof}"
-puts "TOTAL\t#{tn}\t#{td}\t#{to}\t#{tu}\t#{tw}\t#{tf}".colorize(TotalColour)
+message_screen("From #{activeNotes.count} active notes:")
+main_message_screen("\tNotes\tDone\tOverdue\tUndated\tWaiting\tFuture")
+message_screen("Goals\t#{tgn}\t#{tgd}\t#{tgo}\t#{tgu}\t#{tgw}\t#{tgf}")
+message_screen("Project\t#{tpn}\t#{tpd}\t#{tpo}\t#{tpu}\t#{tpw}\t#{tpf}")
+message_screen("Other\t#{ton}\t#{tod}\t#{too}\t#{tou}\t#{tow}\t#{tof}")
+main_message_screen("TOTAL\t#{tn}\t#{td}\t#{to}\t#{tu}\t#{tw}\t#{tf}")
 
 #-------------------------------------------------------------------------
 # Write out new summary stats as a CSV line to file (unless --nofile option given)
@@ -466,9 +481,9 @@ unless options[:no_file]
     f = File.open(filepath, 'a') # append
     f.puts output
     f.close
-    puts "Written this summary to #{OUTPUT_DIR}/task_stats.csv"
+    message_screen("Written this summary to #{OUTPUT_DIR}/task_stats.csv")
   rescue StandardError => e
-    puts "ERROR: Hit #{e.exception.message} when writing out summary to #{filepath}".colorize(WarningColour)
+    error_message_screen("ERROR: Hit #{e.exception.message} when writing out summary to #{filepath}")
   end
 end
 
@@ -482,7 +497,7 @@ ddoa = todh.sort
 # earliest_orddate = ddga[0][0].to_i < ddpa[0][0].to_i ? ddga[0][0].to_i : ddpa[0][0].to_i
 # earliest_orddate = earliest_orddate.to_i < ddoa[0][0].to_i ? earliest_orddate.to_i : ddoa[0][0].to_i
 # ord_date_today = TODAYS_DATE.strftime('%Y%j').to_i
-# puts "  #{earliest_orddate}, #{earliest_orddate.class}"
+# log_message_screen("  #{earliest_orddate}, #{earliest_orddate.class}")
 
 # now append these three arrays onto a single one, with data in correct one of three columns,
 # with the key (the ordinal date) in column 0
@@ -503,7 +518,7 @@ $cal_done_dates.each do |cdd|
   cdo += cdd[1]
   done_dates += [[cdd[0], 0, 0, cdd[1]]]
 end
-puts "\nFound #{cdo} done tasks from #{$cal_done_dates.size} daily notes" if $verbose
+log_message_screen("\nFound #{cdo} done tasks from #{$cal_done_dates.size} daily notes")
 
 dds = done_dates.sort
 # Now compact the array summing items with the same key
@@ -551,8 +566,8 @@ unless options[:no_file]
       total_done_count += d[1] + d[2] + d[3]
     end
     f.close
-    puts "Written summary of when the #{total_done_count} tasks were completed to #{OUTPUT_DIR}/task_done_dates.csv"
+    message_screen("Written summary of when the #{total_done_count} tasks were completed to #{OUTPUT_DIR}/task_done_dates.csv")
   rescue StandardError => e
-    puts "ERROR: Hit #{e.exception.message} when writing out summary to #{filepath}".colorize(WarningColour)
+    error_message_screen("ERROR: Hit #{e.exception.message} when writing out summary to #{filepath}")
   end
 end

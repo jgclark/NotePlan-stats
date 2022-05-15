@@ -1,6 +1,9 @@
 # CHANGELOG
 
 ## for npStats
+### v1.6.2, 15.5.2022
+- [Change] update to handle newer @Templates; improve logging code
+
 ### v1.6.1, 31.12.2021
 - [Fix] in calendar notes, many tasks were counted as being 'overdue' when they should be counted as overdue.
 - [Change] code clean up
