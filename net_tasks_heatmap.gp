@@ -34,7 +34,7 @@ set datafile separator comma
 # set palette rgbformula -9,-12,-9 # = RGB: -sqrt(x), ?, -sqrt(x) = purple (-ve) to green (+ve)
 set palette defined ( -2 "red", 0 "white", 2 "green" ) # works only with a defined cbrange with 0 in the middle
 # settings for colour box (key, really)
-set cbrange [-40:40]
+set cbrange [-30:30]
 set cblabel "Net tasks (Done - Added)"
 set cbtics # show colour change numeric labels
 # set X and Y axes. Need to use 'writeback' to make the settings stick on overlay
