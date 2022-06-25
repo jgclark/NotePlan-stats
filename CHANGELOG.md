@@ -1,6 +1,10 @@
 # CHANGELOG
 
 ## for npStats
+## v1.7.0, 2022-06-26
+- [Added] supports new Weekly notes, available with NotePlan 3.6.0.
+- [Added] new setting FOLDERS_TO_IGNORE to ignore in counts (but something is weird in the file globbing)
+
 ### v1.6.2, 15.5.2022
 - [Change] update to handle newer @Templates; improve logging code
 

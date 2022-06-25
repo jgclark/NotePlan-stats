@@ -1,7 +1,7 @@
 #!/usr/bin/env ruby
 #-------------------------------------------------------------------------------
 # NotePlan Task Stats Summariser
-# (c) JGC, v1.6.2, 15.5.2022
+# (c) JGC, v1.7.0, 26.5.2022
 #-------------------------------------------------------------------------------
 # Script to give stats on various tags in NotePlan's Notes and Daily files.
 #
@@ -21,7 +21,7 @@
 # For more information please see the GitHub repository:
 #   https://github.com/jgclark/NotePlan-stats/
 #-------------------------------------------------------------------------------
-VERSION = '1.6.2'.freeze
+VERSION = '1.7.0'.freeze
 
 require 'date'
 require 'time'
@@ -31,6 +31,7 @@ require 'optparse'
 # User-settable constants
 DATE_FORMAT = '%d.%m.%y'.freeze
 DATE_TIME_FORMAT = '%d %b %Y %H:%M'.freeze
+FOLDERS_TO_IGNORE = ['TEST'].freeze #'Reviews', 'Summaries', 'TEST'].freeze FIXME: see file glob below
 # also set NPEXTRAS environment variable if needed for location of file output
 
 # Constants
@@ -131,9 +132,18 @@ class NPCalendar
     @is_future = false
     header = ''
 
-    # mark this as a future date if the filename YYYYMMDD part as a string is greater than DateToday in YYYYMMDD format
-    @is_future = true if @filename[0..7] > DATE_TODAY_YYYYMMDD
-    log_message_screen("  initialising #{@filename}")
+    # is this a future date?
+    if @filename =~ /\d{8}\.(txt|md)/
+      # for daily notes
+      # mark this as a future date if the filename YYYYMMDD part as a string is greater than DateToday in YYYYMMDD format
+      @is_future = true if @filename[0..7] > DATE_TODAY_YYYYMMDD
+    elsif @filename =~ /\d{4}-W\d{2}\.(txt|md)/
+      # for weekly notes
+      # mark this as a future date if the date representing the start of the week of filename YYYY-Wnn as a string is greater than DateToday in YYYYMMDD format
+      start_of_week_date = Date.parse(@filename[0..7]).to_s.gsub('-', '')
+      log_message_screen("  initialising Weekly note '#{@filename}' (date=#{start_of_week_date})")
+      @is_future = true if start_of_week_date > DATE_TODAY_YYYYMMDD
+    end
 
     # Open file and read in. We've already checked it's not empty.
     # NB: needs the encoding line when run from launchctl, otherwise you get US-ASCII invalid byte errors (basically the 'locale' settings are different)
@@ -306,7 +316,7 @@ end
 # Setup program options
 options = {}
 opt_parser = OptionParser.new do |opts|
-  opts.banner = "NotePlan stats generator v#{VERSION}\nDetails at https://github.com/jgclark/NotePlan-stats/\nUsage: npStats.rb [options]"
+  opts.banner = "NotePlan stats generator v#{VERSION}\nDetails at https://github.com/jgclark/NotePlan-stats/\nUsage: npStats.rb [options] [file-pattern]"
   opts.separator ''
   options[:verbose] = false
   options[:no_file] = false
@@ -331,16 +341,46 @@ $verbose = options[:verbose]
 # Log time
 time_now = Time.now
 time_now_format = time_now.strftime(DATE_TIME_FORMAT)
-if options[:no_calendar]
-  message_screen("Creating stats at #{time_now_format} (ignoring daily calendar files):")
+
+# Setup folders to search over (and whether to ignore calendar files)
+# Always ignore special folders starting '@'.
+glob_folders_to_ignore = "@|" + FOLDERS_TO_IGNORE.join("|")
+Dir.chdir(NP_NOTE_DIR)
+if ARGV.count.positive?
+  # We have a file pattern given, so restrict file globbing to use it
+  glob_to_use = '' # holds the glob_pattern to use
+  begin
+    # First see if this pattern matches a directory name
+    glob_path_pattern = '*' + ARGV[0] + '*/'
+    paths = Dir.glob(glob_path_pattern)
+    if paths.count.positive?
+      # paths.each do |path|
+      #   puts "  Found matching folder #{path}"
+      # end
+      glob_to_use += '{' + paths.join(',').gsub('/', '') + '}/*.{md,txt}'
+    else
+      puts "Found no matching folders for #{glob_path_pattern}. Will match all filenames across folders instead."
+      glob_to_use = '[!(' + glob_folders_to_ignore + ')]*/**/*' + ARGV[0] + '*.{md,txt}'
+    end
+  rescue StandardError => e
+    puts "ERROR: #{e.exception.message} when reading in files matching pattern #{ARGV[0]}".colorize(WarningColour)
+  end
 else
-  message_screen("Creating stats at #{time_now_format}:")
+  # FIXME: this drops a range of folders it shouldn't. Can't fathom it out.
+  # e.g. ['TEST'] drops 'Summaries/' as well.
+  glob_to_use = '{[!(' + glob_folders_to_ignore + ')]*/**/*,*}.{txt,md}'
 end
-message_screen("  Writing output files to #{OUTPUT_DIR}/") unless options[:no_file]
+
+if options[:no_calendar]
+  message_screen("Running npReview v#{VERSION} at #{time_now_format}\n- for files matching #{glob_to_use} (ignoring calendar files)")
+else
+  message_screen("Running npReview v#{VERSION} at #{time_now_format}\n- for files matching #{glob_to_use}")
+end
+message_screen("- writing output files to #{OUTPUT_DIR}/") unless options[:no_file]
 
 #=======================================================================================
 # Note stats
-#=======================================================================================
+
 notes = [] # read in all notes
 activeNotes = [] # list of ID of all active notes
 tgdh = Hash.new(0)
@@ -348,13 +388,14 @@ tpdh = Hash.new(0)
 todh = Hash.new(0)
 
 # Read metadata for all note files in the NotePlan directory
-# (and sub-directories from v2.5, ignoring special ones starting '@')
 notes_to_work_on = 0 # number of notes to work on
 begin
-  Dir.chdir(NP_NOTE_DIR)
-  Dir.glob('[!@]*/**/*.{md,txt}').each do |this_file|
+  Dir.glob(glob_to_use).each do |this_file|
     # ignore this file if it's empty
-    next if File.zero?(this_file)
+    if File.zero?(this_file)
+      warning_message_screen("#{this_file} is empty, so will ingore")
+      next
+    end
 
     notes[notes_to_work_on] = NPNote.new(this_file, notes_to_work_on)
     if notes[notes_to_work_on].is_active
@@ -411,7 +452,8 @@ else
 end
 
 #===============================================================================
-# Calendar stats:
+# Calendar stats
+
 # add these onto previous 'other' task counts
 calFiles = [] # to hold all relevant calendar objects
 
@@ -513,12 +555,14 @@ ddoa.each do |aa|
 end
 
 # Now do similarly for $cal_done_dates (all go just to the 'other' category)
-cdo = 0
-$cal_done_dates.each do |cdd|
-  cdo += cdd[1]
-  done_dates += [[cdd[0], 0, 0, cdd[1]]]
+unless options[:no_calendar]
+  cdo = 0
+  $cal_done_dates.each do |cdd|
+    cdo += cdd[1]
+    done_dates += [[cdd[0], 0, 0, cdd[1]]]
+  end
+  log_message_screen("\nFound #{cdo} done tasks from #{$cal_done_dates.size} daily notes")
 end
-log_message_screen("\nFound #{cdo} done tasks from #{$cal_done_dates.size} daily notes")
 
 dds = done_dates.sort
 # Now compact the array summing items with the same key
