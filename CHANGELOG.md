@@ -1,6 +1,9 @@
 # CHANGELOG
 
 ## for npStats
+## v1.8.0, 2022-09-25
+- [Fixed] sorted folder exlusions, though I don't think it's made a difference in the output
+
 ## v1.7.0, 2022-06-26
 - [Added] supports new Weekly notes, available with NotePlan 3.6.0.
 - [Added] new setting FOLDERS_TO_IGNORE to ignore in counts (but something is weird in the file globbing)
@@ -73,6 +76,10 @@
 Initial load into this GitHub project.
 
 ## for npTagStats
+### v1.7.0, 25.9.2022
+- [Fix] Weekly 'Calendar' notes are now properly handled
+- [Fix] @mention(...)s with floating-point numbers are now better handled in output
+
 ### v1.6.2, 9.2.2021
 - [Change] Folder for file outputs now set via environment variable NPEXTRAS (if using CloudKit as NP storage type)
 

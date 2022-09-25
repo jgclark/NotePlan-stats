@@ -1,12 +1,11 @@
 # NotePlan-stats
 This provides two scripts to generate stats from your data in the [NotePlan](https://noteplan.co/) app.
 
-<!-- Yes, I'll keep both around. New users will get CloudKit by default, if someone still has files in iCloud Drive, NotePlan will keep iCloud Drive by default till the user changes it manually. 
-Folders inside "Notes" will be uploaded. I didn't try adding folders in "Calendar", but they definitely won't be added in the root folder. Also hidden files won't be synced, such as files starting with a dot. -->
+Note: They have been superseded by my [Summaries Plugin](https://github.com/NotePlan/plugins/tree/main/jgclark.Summaries/) available from NotePlan v3.3.2.  It generate summaries from notes for a given time period, or save search results, and save to notes.
 
 ## npStats
-`npStats` script gives stats on various tags in NotePlan's note and calendar files, writing output to screen and to CSV file `task_stats.csv`.
-It copes with notes in sub-directories (supported from NotePlan v2.4), though it ignores ones in the built-in @Archive and @Trash directories.
+`npStats` script gives stats on various tags in NotePlan's note and daily/weekly calendar files, writing output to screen and to CSV file `task_stats.csv`.
+It scans all notes other than the ones in the built-in @Archive and @Trash directories (and any others listed in the `FOLDERS_TO_IGNORE` constant that can be changed near the top of the file).
 
 It finds and summarises todos/tasks in note and calendar files:
 - it only covers active notes (not archived or cancelled)
@@ -19,13 +18,13 @@ It writes output to screen and appends to a `task_stats.csv` file in the (new) t
 Run with `npStats -h` to see the command line switches available.
 
 ## npTagStats
-`npTagStats` script gives summary counts of #hashtags and @mentions in NotePlan's daily calendar files:
+`npTagStats` script gives summary counts of #hashtags and @mentions in NotePlan's daily and weekly calendar files:
 - for #hashtags it simply counts up any it finds from a configurable list, for example `#gym` or `#readbook` 
 - the @mentions counted are of the form `@mention(number)`, e.g. `@work(8)` or `@fruitveg(5)`, this allows simple tracking of numeric items over time, for example hours worked, or number of fruit'n'veg portions eaten. Again, this list is configurable (see below).
 
 There are 2 ways of running this:
 
-1. with a passed year (e.g. `npStats 2020'), it will just look in the files for that year
+1. with a passed year (e.g. `npTagStats 2021`) or year and month (e.g. `npTagStats 202110`), it will just look in the files for that time period
 2. with no arguments (`npStats'), it will just count the current year, and distinguish dates in the future (where relevant)
 
 It writes output to screen and writes to a `<year>_tag_stats.csv` file, unless the `--nofile` command line option is given. (The location depends which NotePlan storage type you use: it goes in the (new) top-level 'Summaries' directory in NotePlan for iCloud Drive or Dropbox, or instead to a local folder defined by the `NPEXTRAS` environment variable.)

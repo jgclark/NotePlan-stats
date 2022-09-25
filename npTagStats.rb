@@ -1,7 +1,9 @@
 #!/usr/bin/env ruby
 #-------------------------------------------------------------------------------
 # NotePlan Tag Stats Summariser
-# Jonathan Clark, v1.6.3, 9.3.2021
+# Jonathan Clark, v1.7.0, 25.9.2022
+#-------------------------------------------------------------------------------
+# Note: The rounding arithmetic is a little crude
 #-------------------------------------------------------------------------------
 # Script to give stats on various tags in NotePlan's daily calendar files.
 #
@@ -22,7 +24,7 @@
 # For more information, including installation, please see the GitHub repository:
 #   https://github.com/jgclark/NotePlan-stats/
 #-------------------------------------------------------------------------------
-VERSION = '1.6.3'.freeze
+VERSION = '1.7.0'.freeze
 
 require 'date'
 require 'time'
@@ -46,6 +48,7 @@ np_base_dir = ICLOUDDRIVE_DIR if Dir.exist?(ICLOUDDRIVE_DIR) && Dir[File.join(IC
 np_base_dir = CLOUDKIT_DIR if Dir.exist?(CLOUDKIT_DIR) && Dir[File.join(CLOUDKIT_DIR, '**', '*')].count { |file| File.file?(file) } > 1
 TODAYS_DATE = Date.today # can't work out why this needs to be a 'constant' to work -- something about visibility, I suppose
 DATE_TODAY_YYYYMMDD = TODAYS_DATE.strftime('%Y%m%d')
+WEEK_TODAY_YYYYWWW = TODAYS_DATE.strftime('%Y-W%W')
 NP_NOTE_DIR = "#{np_base_dir}/Notes".freeze
 NP_CALENDAR_DIR = "#{np_base_dir}/Calendar".freeze
 # TODO: Check whether Summaries directory exists. If not, create it.
@@ -85,13 +88,19 @@ class NPCalendar
     @week_num = nil
 
     # mark this as a future date if the filename YYYYMMDD part as a string is greater than DateToday in YYYYMMDD format
-    yyyymmdd = @filename[0..7]
-    @is_future = true if yyyymmdd > DATE_TODAY_YYYYMMDD
+    date_part = @filename[0..7]
+    if @filename =~ /\d{4}-W\d{1,2}/
+      @is_future = true if date_part > WEEK_TODAY_YYYYWWW
+      # save which week number this is
+      @week_num = @filename[6..7].to_i
+    else
+      @is_future = true if date_part > DATE_TODAY_YYYYMMDD
+      # save which week number this is (NB: 00-53 are all possible),
+      # based on weeks starting on first Monday of year (1), and before then 0
+      this_date = Date.strptime(@filename, '%Y%m%d')
+      @week_num = this_date.strftime('%W').to_i
+    end
     puts "  Initialising #{@filename}".colorize(TotalColour) if $verbose > 1
-    # save which week number this is (NB: 00-53 are apparently all possible),
-    # based on weeks starting on first Monday of year (1), and before then 0
-    this_date = Date.strptime(@filename, '%Y%m%d')
-    @week_num = this_date.strftime('%W').to_i
 
     # Open file and read in
     # NB: needs the encoding line when run from launchctl, otherwise you get US-ASCII invalid byte errors (basically the 'locale' settings are different)
@@ -108,10 +117,10 @@ class NPCalendar
     puts "    Found tags: #{@tags}" if !@tags.empty? && $verbose > 1
 
     # extract all @mentions(something) from lines and store in an array
-    @mentions = lines.scan(%r{@[\w/]+\(\d+?\)}).join(' ')
+    @mentions = lines.scan(%r{@[\w/]+\(\d+\.?\d*\)}).join(' ')
     puts "    Found mentions: #{@mentions}" if !@mentions.empty? && $verbose > 1
   rescue StandardError => e
-    puts "ERROR: Hit #{e.exception.message} when initialising NPCalendar from #{@filename}!".colorize(WarningColour)
+    puts "ERROR: Hit #{e.exception.message} when initialising NPCalendar from #{@filename}".colorize(WarningColour)
   end
 end
 
@@ -167,9 +176,9 @@ begin
   parsed = JSON.parse(json) # returns a hash
   puts parsed if $verbose > 1
   TAGS_TO_COUNT = parsed['tags_to_count'].sort
-  puts TAGS_TO_COUNT if $verbose > 0
+  puts TAGS_TO_COUNT if $verbose > 1
   MENTIONS_TO_COUNT = parsed['mentions_to_count'].sort
-  puts MENTIONS_TO_COUNT if $verbose > 0
+  puts MENTIONS_TO_COUNT if $verbose > 1
 rescue JSON::ParserError => e
   # FIXME: why doesn't this error fire when it can't find the file?
   puts "ERROR: Hit #{e.exception.message} when reading JSON settings file.".colorize(WarningColour)
@@ -233,7 +242,7 @@ if n.positive?
   days = futureDays = 0
   # Iterate over all Calendar items
   cal_files.each do |cal|
-    puts "  Scanning file #{cal.filename}:" if $verbose > 0
+    puts "  Scanning file #{cal.filename}:" if $verbose > 1
     i = 0
 
     # Count #tags of interest
@@ -252,18 +261,19 @@ if n.positive?
       i += 1
     end
 
-    # Count @mentions(n) of interest -- none of which should be in the future
+    # Save and count @mentions(n) of interest -- none of which should be in the future
     # and also make a note on which week they were found
     mi = 0 # counter for which @mention we're looking for
     MENTIONS_TO_COUNT.each do |m|
       # for each @mention(n) get the value of n
-      cal.mentions.scan(/#{m}\((\d+?)\)/i).each do |ns| # case-insensitive scan
+      cal.mentions.scan(/#{m}\((\d+\.?\d*)\)/i).each do |ns| # case-insensitive scan
+        # Note: This is a bit of a hack as it started life with only integer values
         ni = ns.join.to_i # turn string element from array into integer
+        nf = ns[0].to_f
         pc = param_counts[m].fetch(ni, 0) # get current value, or if doesn't exist, default to 0
-        puts "    #{cal.filename} has #{m}(#{ni}); already seen #{pc} of them" if $verbose > 1
         param_counts[m][ni] = pc + 1
-        puts "      #{cal.week_num} #{mi} #{ni} = #{mention_week_totals[cal.week_num][mi]}" if $verbose > 1
-        mention_week_totals[cal.week_num][mi] += ni
+        puts "    #{cal.filename} has #{m}(#{nf}); already seen #{pc} of them. Wk #{cal.week_num} mi #{mi} ni #{ni} -> #{mention_week_totals[cal.week_num][mi]}" if $verbose > 1
+        mention_week_totals[cal.week_num][mi] += nf
       end
       mi += 1
     end
@@ -336,7 +346,7 @@ if n.positive?
       m_count += mav
       puts "   #{mav} * #{mak} -> #{m_sum} (cum) over #{m_count} (cum)" if $verbose > 1
     end
-    m_avg = (m_sum / m_count).round(1)
+    m_avg = (((m_sum / m_count)*1000).round(0))/1000
     m_sum_screen += "\t#{m_sum}"
     m_average_screen += "\t#{m_avg}"
     m_sum_file += ",#{m_sum}"
@@ -383,7 +393,7 @@ if n.positive?
     mi = 0
     mc = 0
     while mi < MENTIONS_TO_COUNT.count
-      mwt = !mention_week_totals[w][mi].nil? ? mention_week_totals[w][mi] : 0
+      mwt = !mention_week_totals[w][mi].nil? ? mention_week_totals[w][mi].round(0) : 0
       m_sum[mi] += mwt # sum how many items for this mention
       mc += mwt # sum how many items reported this week
       outs += "\t#{mwt}"
@@ -400,8 +410,9 @@ if n.positive?
   end
   mi = 0
   while mi < MENTIONS_TO_COUNT.count
-    m_sum_screen += "\t#{m_sum[mi]}"
-    m_sum_file += ",#{m_sum[mi]}"
+    m_this_sum = m_sum[mi].round(0)
+    m_sum_screen += "\t#{m_this_sum}"
+    m_sum_file += ",#{m_this_sum}"
     mi += 1
   end
   puts m_sum_screen.colorize(TotalColour)

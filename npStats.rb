@@ -1,7 +1,7 @@
 #!/usr/bin/env ruby
 #-------------------------------------------------------------------------------
 # NotePlan Task Stats Summariser
-# (c) JGC, v1.7.0, 26.5.2022
+# (c) JGC, v1.8.0, 25.9.2022
 #-------------------------------------------------------------------------------
 # Script to give stats on various tags in NotePlan's Notes and Daily files.
 #
@@ -21,17 +21,18 @@
 # For more information please see the GitHub repository:
 #   https://github.com/jgclark/NotePlan-stats/
 #-------------------------------------------------------------------------------
-VERSION = '1.7.0'.freeze
+VERSION = '1.8.0'.freeze
 
 require 'date'
 require 'time'
 require 'colorize' # for coloured output using https://github.com/fazibear/colorize
 require 'optparse'
+require 'find'
 
 # User-settable constants
 DATE_FORMAT = '%d.%m.%y'.freeze
 DATE_TIME_FORMAT = '%d %b %Y %H:%M'.freeze
-FOLDERS_TO_IGNORE = ['TEST'].freeze #'Reviews', 'Summaries', 'TEST'].freeze FIXME: see file glob below
+FOLDERS_TO_IGNORE = ['@Archive', '@Trash', '@Templates', '@Searches', 'TEST', 'Reviews', 'Saved Searches', 'Summaries'].freeze #'Reviews', 'Summaries', 'TEST'].freeze
 # also set NPEXTRAS environment variable if needed for location of file output
 
 # Constants
@@ -342,39 +343,10 @@ $verbose = options[:verbose]
 time_now = Time.now
 time_now_format = time_now.strftime(DATE_TIME_FORMAT)
 
-# Setup folders to search over (and whether to ignore calendar files)
-# Always ignore special folders starting '@'.
-glob_folders_to_ignore = "@|" + FOLDERS_TO_IGNORE.join("|")
-Dir.chdir(NP_NOTE_DIR)
-if ARGV.count.positive?
-  # We have a file pattern given, so restrict file globbing to use it
-  glob_to_use = '' # holds the glob_pattern to use
-  begin
-    # First see if this pattern matches a directory name
-    glob_path_pattern = '*' + ARGV[0] + '*/'
-    paths = Dir.glob(glob_path_pattern)
-    if paths.count.positive?
-      # paths.each do |path|
-      #   puts "  Found matching folder #{path}"
-      # end
-      glob_to_use += '{' + paths.join(',').gsub('/', '') + '}/*.{md,txt}'
-    else
-      puts "Found no matching folders for #{glob_path_pattern}. Will match all filenames across folders instead."
-      glob_to_use = '[!(' + glob_folders_to_ignore + ')]*/**/*' + ARGV[0] + '*.{md,txt}'
-    end
-  rescue StandardError => e
-    puts "ERROR: #{e.exception.message} when reading in files matching pattern #{ARGV[0]}".colorize(WarningColour)
-  end
-else
-  # FIXME: this drops a range of folders it shouldn't. Can't fathom it out.
-  # e.g. ['TEST'] drops 'Summaries/' as well.
-  glob_to_use = '{[!(' + glob_folders_to_ignore + ')]*/**/*,*}.{txt,md}'
-end
-
 if options[:no_calendar]
-  message_screen("Running npReview v#{VERSION} at #{time_now_format}\n- for files matching #{glob_to_use} (ignoring calendar files)")
+  message_screen("Running npReview v#{VERSION} at #{time_now_format}\n- for files (ignoring Calendar files and folders #{FOLDERS_TO_IGNORE})")
 else
-  message_screen("Running npReview v#{VERSION} at #{time_now_format}\n- for files matching #{glob_to_use}")
+  message_screen("Running npReview v#{VERSION} at #{time_now_format}\n- for files (ignoring folders #{FOLDERS_TO_IGNORE})")
 end
 message_screen("- writing output files to #{OUTPUT_DIR}/") unless options[:no_file]
 
@@ -390,21 +362,33 @@ todh = Hash.new(0)
 # Read metadata for all note files in the NotePlan directory
 notes_to_work_on = 0 # number of notes to work on
 begin
-  Dir.glob(glob_to_use).each do |this_file|
-    # ignore this file if it's empty
-    if File.zero?(this_file)
-      warning_message_screen("#{this_file} is empty, so will ingore")
-      next
-    end
+  # our file globbing needs are too complex for simple Dir.glob, so using Find.find instead
+  Find.find(NP_NOTE_DIR) do |path|
+    name = File.basename(path)
+    if FileTest.directory?(path)
+      if FOLDERS_TO_IGNORE.include?(name)
+        Find.prune
+      else
+        next
+      end
+    else
+      if name =~ /.(md|txt)$/
+        # message_screen("- found #{name}")
+        if File.zero?(path)
+          warning_message_screen("#{path} is empty, so will ingore")
+          next
+        end
 
-    notes[notes_to_work_on] = NPNote.new(this_file, notes_to_work_on)
-    if notes[notes_to_work_on].is_active
-      activeNotes.push(notes[notes_to_work_on].id)
-      notes_to_work_on += 1
+        notes[notes_to_work_on] = NPNote.new(path, notes_to_work_on)
+        if notes[notes_to_work_on].is_active
+          activeNotes.push(notes[notes_to_work_on].id)
+          notes_to_work_on += 1
+        end
+      end
     end
   end
 rescue StandardError => e
-  error_message_screen("ERROR: Hit #{e.exception.message} when reading notes directory")
+  error_message_screen("ERROR: Hit #{e.exception.message} when reading Notes directory")
 end
 
 # Count open (overdue) tasks, open undated, waiting, done tasks, future tasks
@@ -473,7 +457,7 @@ unless options[:no_calendar]
       cal_entries_to_work_on += 1
     end
   rescue StandardError => e
-    error_message_screen("ERROR: Hit #{e.exception.message} when reading calendar directory")
+    error_message_screen("ERROR: Hit #{e.exception.message} when reading Calendar directory")
   end
 
   if cal_entries_to_work_on.positive? # if we have some notes to work on ...
