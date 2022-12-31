@@ -1,6 +1,9 @@
 # CHANGELOG
 
 ## for npStats
+## v1.8.1, 2022-12-31
+- [Changed] NP 3.8 adds checklists; these are now ignored in the task completion stats
+
 ## v1.8.0, 2022-09-25
 - [Fixed] sorted folder exlusions, though I don't think it's made a difference in the output
 

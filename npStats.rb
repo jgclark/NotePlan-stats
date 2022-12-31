@@ -1,7 +1,7 @@
 #!/usr/bin/env ruby
 #-------------------------------------------------------------------------------
 # NotePlan Task Stats Summariser
-# (c) JGC, v1.8.0, 25.9.2022
+# (c) JGC, v1.8.1, 31.12.2022
 #-------------------------------------------------------------------------------
 # Script to give stats on various tags in NotePlan's Notes and Daily files.
 #
@@ -21,7 +21,7 @@
 # For more information please see the GitHub repository:
 #   https://github.com/jgclark/NotePlan-stats/
 #-------------------------------------------------------------------------------
-VERSION = '1.8.0'.freeze
+VERSION = '1.8.1'.freeze
 
 require 'date'
 require 'time'
@@ -32,7 +32,7 @@ require 'find'
 # User-settable constants
 DATE_FORMAT = '%d.%m.%y'.freeze
 DATE_TIME_FORMAT = '%d %b %Y %H:%M'.freeze
-FOLDERS_TO_IGNORE = ['@Archive', '@Trash', '@Templates', '@Searches', 'TEST', 'Reviews', 'Saved Searches', 'Summaries'].freeze #'Reviews', 'Summaries', 'TEST'].freeze
+FOLDERS_TO_IGNORE = ['@Archive', '@Trash', '@Templates', '@Searches', 'TEST', 'Reviews', 'Saved Searches', 'Summaries'].freeze 
 # also set NPEXTRAS environment variable if needed for location of file output
 
 # Constants
@@ -153,7 +153,7 @@ class NPCalendar
       f.each_line do |line|
         header += line # join all lines together for later scanning
         # Counting number of open, waiting, done tasks etc.
-        if line =~ /\[x\]/
+        if line =~ /^\s*\*\s+/ && line =~ /\[x\]/
           @done += 1 # count up the completed task
           # Also make a note of the done date in the $cal_done_dates array
           done_date_string = line.scan(/@done\((\d{4}-\d{2}-\d{2}.*)/).join('')
@@ -190,7 +190,7 @@ class NPCalendar
   rescue EOFError
     # this file has less than two lines, but we can ignore the problem for the stats
   rescue StandardError => e
-    error_message_screen("ERROR: Hit #{e.exception.message} when initialising #{@filename} in NPCalendar")
+    error_message_screen("ERROR: Hit #{e.exception.message} when initialising #{@filename} line <#{line}> in NPCalendar")
   end
 end
 
@@ -233,6 +233,7 @@ class NPNote
 
     log_message_screen("  Initializing NPNote for #{this_file}")
     # Open file and read the first two lines
+    # FIXME: This won't work properly with frontmatter
     File.open(this_file, 'r', encoding: 'utf-8') do |f|
       headerLine = f.readline
       @metadata_line = f.readline
@@ -264,7 +265,7 @@ class NPNote
           template_section_header_level = line_header_level if line =~ /#template/
         end
         # log_message_screen("#{template_section_header_level}/#{line_header_level}: #{line.chomp}")
-        if line =~ /\[x\]/
+        if line =~ /^\s*\*\s+/ && line =~ /\[x\]/
           # a completed task (using [x] format)
           @done += 1
           # For each done task, make a note of the done date in the $done_dates array

@@ -9,7 +9,7 @@ It scans all notes other than the ones in the built-in @Archive and @Trash direc
 
 It finds and summarises todos/tasks in note and calendar files:
 - it only covers active notes (not archived or cancelled)
-- it counts open tasks, open undated tasks, done tasks, future tasks
+- it counts open tasks, open undated tasks, done tasks, future tasks (but not checklists introduced in NotePlan v3.8)
 - it also breaks them down by Goals/Projects/Other. (For more on this particular way of using NotePlan see documentation for a different NotePlan extension, [NotePlan Reviewer]((https://github.com/jgclark/NotePlan-review).)
 - it ignores tasks in a #template section. (For more on this particular way of using NotePlan see documentation for a different NotePlan extension, [NotePlan Tools]((https://github.com/jgclark/NotePlan-tools).)
 
