@@ -79,6 +79,9 @@
 Initial load into this GitHub project.
 
 ## for npTagStats
+### v1.7.1, 1.1.2023
+- [New] Adds support for NotePlan's new monthly, quarterly and yearly notes
+
 ### v1.7.0, 25.9.2022
 - [Fix] Weekly 'Calendar' notes are now properly handled
 - [Fix] @mention(...)s with floating-point numbers are now better handled in output

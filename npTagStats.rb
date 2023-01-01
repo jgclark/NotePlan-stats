@@ -1,7 +1,7 @@
 #!/usr/bin/env ruby
 #-------------------------------------------------------------------------------
 # NotePlan Tag Stats Summariser
-# Jonathan Clark, v1.7.0, 25.9.2022
+# Jonathan Clark, v1.7.1, 1.1.2023
 #-------------------------------------------------------------------------------
 # Note: The rounding arithmetic is a little crude
 #-------------------------------------------------------------------------------
@@ -24,7 +24,7 @@
 # For more information, including installation, please see the GitHub repository:
 #   https://github.com/jgclark/NotePlan-stats/
 #-------------------------------------------------------------------------------
-VERSION = '1.7.0'.freeze
+VERSION = '1.7.1'.freeze
 
 require 'date'
 require 'time'
@@ -89,15 +89,32 @@ class NPCalendar
 
     # mark this as a future date if the filename YYYYMMDD part as a string is greater than DateToday in YYYYMMDD format
     date_part = @filename[0..7]
-    if @filename =~ /\d{4}-W\d{1,2}/
-      @is_future = true if date_part > WEEK_TODAY_YYYYWWW
-      # save which week number this is
-      @week_num = @filename[6..7].to_i
-    else
+    if @filename =~ /\d{8}/ # daily note
       @is_future = true if date_part > DATE_TODAY_YYYYMMDD
       # save which week number this is (NB: 00-53 are all possible),
       # based on weeks starting on first Monday of year (1), and before then 0
       this_date = Date.strptime(@filename, '%Y%m%d')
+      @week_num = this_date.strftime('%W').to_i
+    elsif @filename =~ /\d{4}-W[0-5]\d/ # weekly note
+      @is_future = true if date_part > WEEK_TODAY_YYYYWWW
+      @week_num = @filename[6..7].to_i
+    elsif @filename =~ /\d{4}-[0-1]\d/ # monthly note
+      # TODO: work out @is_future here
+      this_date = Date.strptime(@filename, '%Y-%m')
+      @week_num = this_date.strftime('%W').to_i
+    elsif @filename =~ /\d{4}-Q[1-4]/ # quarterly note
+      # as strptime doesn't recognise quarters, need to convert to fake month
+      q = @filename[6]
+      fake_date_part = (q=='1') ? @filename[0..3]+'0101' 
+        : (q=='2') ? @filename[0..3]+'0401' 
+        : (q=='3') ? @filename[0..3]+'0701' 
+        : (q=='4') ? @filename[0..3]+'1001' : ''
+      this_date = Date.strptime(fake_date_part, '%Y%m%d')
+      @is_future = true if fake_date_part > DATE_TODAY_YYYYMMDD
+      @week_num = this_date.strftime('%W').to_i
+    elsif @filename =~ /\d{4}/ # yearly note
+      # TODO: work out @is_future here
+      this_date = Date.strptime(@filename, '%Y')
       @week_num = this_date.strftime('%W').to_i
     end
     puts "  Initialising #{@filename}".colorize(TotalColour) if $verbose > 1
@@ -192,7 +209,7 @@ end
 
 # Work out which year's calendar files to be summarising
 the_year_str = ARGV[0] || this_year_str
-puts "Creating stats at #{time_now_fmt} for #{the_year_str}"
+puts "Creating stats at #{time_now_fmt} for #{the_year_str} - v#{VERSION}"
 begin
   Dir.chdir(NP_CALENDAR_DIR)
   # Get all matching files, *in sorted order*
