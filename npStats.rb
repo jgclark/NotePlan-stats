@@ -1,7 +1,7 @@
 #!/usr/bin/env ruby
 #-------------------------------------------------------------------------------
 # NotePlan Task Stats Summariser
-# (c) JGC, v1.8.1, 31.12.2022
+# (c) JGC, v1.8.2, 2025-05-22
 #-------------------------------------------------------------------------------
 # Script to give stats on various tags in NotePlan's Notes and Daily files.
 #
@@ -16,6 +16,7 @@
 # - re-calculated list of all done tasks by date to task_done_dates.csv
 #
 # Configuration:
+# - Requires setting HOME and NPEXTRAS environment variables if run from cron job
 # - Requires gems colorize & optparse ('gem install colorize optparse')
 #-------------------------------------------------------------------------------
 # For more information please see the GitHub repository:
@@ -32,28 +33,28 @@ require 'find'
 # User-settable constants
 DATE_FORMAT = '%d.%m.%y'.freeze
 DATE_TIME_FORMAT = '%d %b %Y %H:%M'.freeze
-FOLDERS_TO_IGNORE = ['@Archive', '@Trash', '@Templates', '@Searches', 'TEST', 'Reviews', 'Saved Searches', 'Summaries'].freeze 
-# also set NPEXTRAS environment variable if needed for location of file output
+FOLDERS_TO_IGNORE = ['@Archive', '@Trash', '@Templates', '@Searches', '@Conflicted Copies', 'TEST', '@Reviews', 'Saved Searches', 'Summaries'].freeze 
 
 # Constants
 USER_DIR = ENV['HOME'] # pull home directory from environment
+NPEXTRAS = ENV['NPEXTRAS'] # pull output storage folder from environment
 DROPBOX_DIR = "#{USER_DIR}/Dropbox/Apps/NotePlan/Documents".freeze
 ICLOUDDRIVE_DIR = "#{USER_DIR}/Library/Mobile Documents/iCloud~co~noteplan~NotePlan/Documents".freeze
 CLOUDKIT_DIR = "#{USER_DIR}/Library/Containers/co.noteplan.NotePlan3/Data/Library/Application Support/co.noteplan.NotePlan3".freeze
-NP_BASE_DIR = if Dir.exist?(CLOUDKIT_DIR) && Dir[File.join(CLOUDKIT_DIR, '**', '*')].count { |file| File.file?(file) } > 1
+NP_BASE_DIR = if Dir.exist?(CLOUDKIT_DIR)
                 CLOUDKIT_DIR
-              elsif Dir.exist?(ICLOUDDRIVE_DIR) && Dir[File.join(ICLOUDDRIVE_DIR, '**', '*')].count { |file| File.file?(file) } > 1
+              elsif Dir.exist?(ICLOUDDRIVE_DIR)
                 ICLOUDDRIVE_DIR
-              elsif Dir.exist?(DROPBOX_DIR) && Dir[File.join(DROPBOX_DIR, '**', '*')].count { |file| File.file?(file) } > 1
+              elsif Dir.exist?(DROPBOX_DIR)
                 DROPBOX_DIR
               end
 NP_CALENDAR_DIR = "#{NP_BASE_DIR}/Calendar".freeze
 NP_NOTE_DIR = "#{NP_BASE_DIR}/Notes".freeze
 # NB: a user-set directory, not the usual CloudKit directory, as non-NotePlan folders won't sync from it.
-OUTPUT_DIR = if Dir.exist?(CLOUDKIT_DIR) && Dir[File.join(CLOUDKIT_DIR, '**', '*')].count { |file| File.file?(file) } > 1
-               ENV['NPEXTRAS'] # save in user-specified directory as it won't be sync'd in a CloudKit directory
+OUTPUT_DIR = if Dir.exist?(NPEXTRAS)
+               NPEXTRAS # prefer to use the NPEXTRAS directory if it exists
              else
-               "#{np_base_dir}/Summaries".freeze # but otherwise can store in Summaries/ directory in NP
+               "#{NP_NOTE_DIR}/Summaries".freeze # but otherwise can store in Summaries/ directory in NP
              end
 TODAYS_DATE = Date.today # can't work out why this needs to be a 'constant' to work -- something about visibility, I suppose
 DATE_TODAY_YYYYMMDD = TODAYS_DATE.strftime('%Y%m%d')
@@ -345,16 +346,16 @@ time_now = Time.now
 time_now_format = time_now.strftime(DATE_TIME_FORMAT)
 
 if options[:no_calendar]
-  message_screen("Running npReview v#{VERSION} at #{time_now_format}\n- for files (ignoring Calendar files and folders #{FOLDERS_TO_IGNORE})")
+  message_screen("Running npStats v#{VERSION} at #{time_now_format}\n- for files (ignoring Calendar files and folders #{FOLDERS_TO_IGNORE})")
 else
-  message_screen("Running npReview v#{VERSION} at #{time_now_format}\n- for files (ignoring folders #{FOLDERS_TO_IGNORE})")
+  message_screen("Running npStats v#{VERSION} at #{time_now_format}\n- for files (ignoring folders #{FOLDERS_TO_IGNORE})")
 end
 message_screen("- writing output files to #{OUTPUT_DIR}/") unless options[:no_file]
 
 #=======================================================================================
 # Note stats
 
-notes = [] # read in all notes
+notes = [] # all notes
 activeNotes = [] # list of ID of all active notes
 tgdh = Hash.new(0)
 tpdh = Hash.new(0)
@@ -364,29 +365,34 @@ todh = Hash.new(0)
 notes_to_work_on = 0 # number of notes to work on
 begin
   # our file globbing needs are too complex for simple Dir.glob, so using Find.find instead
-  Find.find(NP_NOTE_DIR) do |path|
-    name = File.basename(path)
-    if FileTest.directory?(path)
-      if FOLDERS_TO_IGNORE.include?(name)
-        Find.prune
-      else
-        next
-      end
-    else
-      if name =~ /.(md|txt)$/
-        # message_screen("- found #{name}")
-        if File.zero?(path)
-          warning_message_screen("#{path} is empty, so will ingore")
+  if Dir.exist?(NP_NOTE_DIR)
+    Dir.chdir(NP_NOTE_DIR)
+    Find.find(NP_NOTE_DIR) do |path|
+      name = File.basename(path)
+      if FileTest.directory?(path)
+        if FOLDERS_TO_IGNORE.include?(name)
+          Find.prune
+        else
           next
         end
+      else
+        if name =~ /.(md|txt)$/
+          # message_screen("- found #{name}")
+          if File.zero?(path)
+            warning_message_screen("#{path} is empty, so will ingore")
+            next
+          end
 
-        notes[notes_to_work_on] = NPNote.new(path, notes_to_work_on)
-        if notes[notes_to_work_on].is_active
-          activeNotes.push(notes[notes_to_work_on].id)
-          notes_to_work_on += 1
+          notes[notes_to_work_on] = NPNote.new(path, notes_to_work_on)
+          if notes[notes_to_work_on].is_active
+            activeNotes.push(notes[notes_to_work_on].id)
+            notes_to_work_on += 1
+          end
         end
       end
     end
+  elsif
+    warning_message_screen("Warning: Notes directory '#{NP_NOTES_DIR}' does not exist or is not accessible.")
   end
 rescue StandardError => e
   error_message_screen("ERROR: Hit #{e.exception.message} when reading Notes directory")
@@ -447,15 +453,19 @@ unless options[:no_calendar]
   # (and sub-directories from v2.5, ignoring special ones starting '@')
   cal_entries_to_work_on = 0 # number of calendar entries to work on
   begin
-    Dir.chdir(NP_CALENDAR_DIR)
-    Dir.glob(['**/*.txt', '**/*.md']).each do |this_file|
-      # ignore this file if the directory starts with '@'
-      next unless this_file =~ /^[^@]/ # as can't get file glob including [^@] to work
-      # ignore this file if it's empty
-      next if File.zero?(this_file)
+    if Dir.exist?(NP_CALENDAR_DIR)
+      Dir.chdir(NP_CALENDAR_DIR)
+      Dir.glob(['**/*.txt', '**/*.md']).each do |this_file|
+        # ignore this file if the directory starts with '@'
+        next unless this_file =~ /^[^@]/ # as can't get file glob including [^@] to work
+        # ignore this file if it's empty
+        next if File.zero?(this_file)
 
-      calFiles[cal_entries_to_work_on] = NPCalendar.new(this_file, cal_entries_to_work_on)
-      cal_entries_to_work_on += 1
+        calFiles[cal_entries_to_work_on] = NPCalendar.new(this_file, cal_entries_to_work_on)
+        cal_entries_to_work_on += 1
+      end
+    else
+      warning_message_screen("Warning: Calendar directory '#{NP_CALENDAR_DIR}' does not exist or is not accessible.")
     end
   rescue StandardError => e
     error_message_screen("ERROR: Hit #{e.exception.message} when reading Calendar directory")
