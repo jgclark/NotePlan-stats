@@ -43,21 +43,8 @@
 # plot 'test.dat' using 2:xtic(1) title 'Col1', '' using 3 title 'Col2', '' using 4 title 'Col3'
 # With this command, the xtic labels will stay the same, and the first bar will no longer be there. Note that the colors for the data will change with this command, since the first thing plotted will be red, the second green and the third blue.
 #-------------------------------------------------------------------------------
-# - v0.8.1, 2021-11-16 - will now work on M1 Macs with different Homebrew location
-# - v0.8.0, 2021-10-30 - comment out the 'net tasks' generation
-# - v0.7.3, 9.3.2021 - code clean-up
-# - v0.7.2, 9.2.2021 - now use environment variable NPEXTRAS to set IO_DIR if using CloudKit storage
-# - v0.7.1, 4.1.2021 - fix date parsing errors when reading tasks_net.csv over a year boundary
-# - v0.7, 29.11.2020 - adds graph of net tasks as a heatmap
-# - v0.6.1, 14.11.2020 - code cleanup
-# - v0.6, 13.11.2020 - adds graph of done tasks as a heatmap
-# - v0.5, 24.10.2020 - change file paths for input/output data files to ~/Dropbox/NPSummaries
-# - v0.4, 27.9.2020 - tweaks graph of net tasks
-# - v0.3, 29.8.2020 - write graphs of open and done tasks now using Gnuplot
-# - v0.2.2, 23.8.2020 - change tasks completed per day graph to differentiate between Goal/Project/Other
-# - v0.2.1, 23.8.2020 - add graph for number of tasks completed per day over last 6 months (using local gnuplot)
-# - v0.2, 11.7.2020 - produces graphs of number of open tasks over time for Goals/Projects/Other (using Google Charts API)
-VERSION = '0.8.1'.freeze
+
+VERSION = '0.8.2'.freeze
 
 require 'date'
 require 'time'
@@ -71,15 +58,28 @@ require 'gnuplot'
 
 # Constants
 USER_DIR = ENV['HOME'] # pull home directory from environment
+NPEXTRAS = ENV['NPEXTRAS'] # save in user-specified directory as it won't be sync'd in a CloudKit directory
+DROPBOX_DIR = "#{USER_DIR}/Dropbox/Apps/NotePlan/Documents".freeze
+ICLOUDDRIVE_DIR = "#{USER_DIR}/Library/Mobile Documents/iCloud~co~noteplan~NotePlan/Documents".freeze
 CLOUDKIT_DIR = "#{USER_DIR}/Library/Containers/co.noteplan.NotePlan3/Data/Library/Application Support/co.noteplan.NotePlan3".freeze
 # NB: a user-set directory, not the usual CloudKit directory, as non-NotePlan folders won't sync from it.
+puts CLOUDKIT_DIR
+NP_BASE_DIR = if Dir.exist?(CLOUDKIT_DIR) && Dir[File.join(CLOUDKIT_DIR, '**', '*')].count { |file| File.file?(file) } > 1
+                CLOUDKIT_DIR
+              elsif Dir.exist?(ICLOUDDRIVE_DIR) && Dir[File.join(ICLOUDDRIVE_DIR, '**', '*')].count { |file| File.file?(file) } > 1
+                ICLOUDDRIVE_DIR
+              elsif Dir.exist?(DROPBOX_DIR) && Dir[File.join(DROPBOX_DIR, '**', '*')].count { |file| File.file?(file) } > 1
+                DROPBOX_DIR
+              end
+puts NP_BASE_DIR
 IO_DIR = if Dir.exist?(CLOUDKIT_DIR) && Dir[File.join(CLOUDKIT_DIR, '**', '*')].count { |file| File.file?(file) } > 1
-           ENV['NPEXTRAS'] # save in user-specified directory as it won't be sync'd in a CloudKit directory
+           NPEXTRAS
          else
-           "#{np_base_dir}/Summaries".freeze # but otherwise can store in Summaries/ directory in NP
+           "#{NP_BASE_DIR}/Summaries".freeze # but otherwise can store in Summaries/ directory in NP
          end
+puts IO_DIR
 # Allow for both M1 and Intel versions of Homebrew
-GP_EXEC_DIR = if Dir.exist?("/opt/homebrew/bin")
+GP_CALL = if Dir.exist?("/opt/homebrew/bin")
                 "/opt/homebrew/bin/gnuplot"
               else
                 "/usr/local/bin/gnuplot"
@@ -161,8 +161,8 @@ $verbose = options[:verbose]
 # Do graphs of totals/averages from hashtags or mentions
 # -----------------------------------------------------------------------------------
 
-gp_commands = 'mentions.gp'
-gp_call_result = system("#{GP_EXEC_DIR} '#{gp_commands}'")
+gp_call_params = 'mentions.gp'
+gp_call_result = system("#{GP_CALL} '#{gp_call_params}'")
 puts 'ERROR: Hit problem when creating graphs using gnuplot'.colorize(WarningColour) unless gp_call_result
 
 # -----------------------------------------------------------------------------------
@@ -248,8 +248,8 @@ puts 'ERROR: Hit problem when creating graphs using gnuplot'.colorize(WarningCol
 
 # Alternatively use separate gnuplot definition file and call:
 # - https://stackoverflow.com/questions/2232/how-to-call-shell-commands-from-ruby
-# gp_commands = 'done_tasks.gp'
-# gp_call_result = system("#{GP_EXEC_DIR} '#{gp_commands}'")
+# gp_call_params = 'done_tasks.gp'
+# gp_call_result = system("#{GP_CALL} '#{gp_call_params}'")
 # puts 'ERROR: Hit problem when creating Done Tasks graph using gnuplot'.colorize(WarningColour) unless gp_call_result
 
 # -----------------------------------------------------------------------------------
@@ -334,8 +334,8 @@ end
 #   puts "ERROR: '#{e.exception.message}' when writing #{NET_FILENAME}".colorize(WarningColour)
 # end
 
-# gp_commands = 'net_tasks.gp'
-# gp_call_result = system("#{GP_EXEC_DIR} '#{gp_commands}'")
+# gp_call_params = 'net_tasks.gp'
+# gp_call_result = system("#{GP_CALL} '#{gp_call_params}'")
 # puts 'ERROR: Hit problem when creating Net Tasks graph using gnuplot'.colorize(WarningColour) unless gp_call_result
 
 # -----------------------------------------------------------------------------------
@@ -399,8 +399,8 @@ rescue StandardError => e
   puts "ERROR: '#{e.exception.message}' when writing #{NET_HEATMAP_FILENAME}".colorize(WarningColour)
 end
 
-gp_commands = 'net_tasks_heatmap.gp'
-gp_call_result = system("#{GP_EXEC_DIR} '#{gp_commands}'")
+gp_call_params = 'net_tasks_heatmap.gp'
+gp_call_result = system("#{GP_CALL} '#{gp_call_params}'")
 puts 'ERROR: Hit problem when creating graphs using gnuplot'.colorize(WarningColour) unless gp_call_result
 
 # -----------------------------------------------------------------------------------
@@ -463,8 +463,8 @@ rescue StandardError => e
   puts "ERROR: '#{e.exception.message}' when writing #{DONE_HEATMAP_FILENAME}".colorize(WarningColour)
 end
 
-gp_commands = 'done_tasks_heatmap.gp'
-gp_call_result = system("#{GP_EXEC_DIR} '#{gp_commands}'")
+gp_call_params = 'done_tasks_heatmap.gp'
+gp_call_result = system("#{GP_CALL} '#{gp_call_params}'")
 puts 'ERROR: Hit problem when creating graphs using gnuplot'.colorize(WarningColour) unless gp_call_result
 
 # -----------------------------------------------------------------------------------
@@ -484,137 +484,8 @@ rescue StandardError => e
   puts "ERROR: '#{e.exception.message}' when reading #{IO_DIR}/task_stats.csv".colorize(WarningColour)
 end
 
-gp_commands = 'open_tasks.gp'
-gp_call_result = system("#{GP_EXEC_DIR} '#{gp_commands}'")
+gp_call_params = 'open_tasks.gp'
+gp_call_result = system("#{GP_CALL} '#{gp_call_params}'")
 puts 'ERROR: Hit problem when creating graphs using gnuplot'.colorize(WarningColour) unless gp_call_result
 
 exit
-
-#=================================================================================
-# Earlier versions, using GoogleCharts gem (unmaintained it seems)
-#=================================================================================
-
-begin
-  # Create chart to show difference between complete and open tasks over time
-  # FIXME: 'add' isn't working for some reason
-  goal_open    = add(gpo_table.by_col['G Overdue'], gpo_table.by_col['G Undated'])
-  project_open = add(gpo_table.by_col['P Overdue'], gpo_table.by_col['P Undated'])
-  other_open   = add(gpo_table.by_col['Overdue'].compact, gpo_table.by_col['Undated'].compact)
-
-  chart_go = Gchart.new(type: 'sparkline',
-                        title: "Goal open tasks in NotePlan (#{TODAYS_DATE})",
-                        # size: '600x200',
-                        height: '70',
-                        data: [goal_open],
-                        # min_value: 0, # scale this properly
-                        line_colors: 'ff2222',
-                        filename: 'goal_task_spark.png')
-  # Record file in filesystem
-  chart_go.file
-  puts '-> goal_task_spark.png'
-
-  chart_po = Gchart.new(type: 'sparkline',
-                        title: "Project open tasks in NotePlan (#{TODAYS_DATE})",
-                        # size: '600x200',
-                        height: '70',
-                        data: [project_open],
-                        # min_value: 0, # scale this properly
-                        line_colors: '22ff22',
-                        filename: 'project_task_spark.png')
-  # Record file in filesystem
-  chart_po.file
-  puts '-> project_task_spark.png'
-
-  chart_oo = Gchart.new(type: 'sparkline',
-                        title: "Other open tasks in NotePlan (#{TODAYS_DATE})",
-                        # size: '600x200',
-                        height: '70',
-                        data: [other_open],
-                        # min_value: 0, # scale this properly
-                        line_colors: '2222ff',
-                        filename: 'other_task_spark.png')
-  # Record file in filesystem
-  chart_oo.file
-  puts '-> other_task_spark.png'
-
-  # Create chart to show task completions over time
-  # TODO: Check to see whether this is actually putting out sensible numbers, and scales
-  chart1 = Gchart.new(type: 'line',
-                      title: "Completed Task stats from NotePlan (#{TODAYS_DATE})",
-                      size: '600x400',
-                      theme: :thirty7signals,
-                      data: [gpo_table.by_col['Goal Done'], gpo_table.by_col['Project Done'], gpo_table.by_col['Other Done']],
-                      min_value: 0, # scale this properly
-                      line_colors: 'ff2222,22ff22,2222ff',
-                      legend: ['Goal tasks', 'Project tasks', 'Other tasks'],
-                      axis_with_labels: %w[x y],
-                      # :axis_labels => ['date', 'count'],
-                      # :axis_range => [[0,100,20], [0,20,5]],
-                      filename: 'task_completions.png')
-  # Record file in filesystem
-  puts chart1.axis_range
-  chart1.file
-  puts '-> task_completions.png'
-
-  # Create chart to show number of goals, projects, other notes over time
-  chart2 = Gchart.new(type: 'line',
-                      title: "Number of Goals, Project, Other notes in NotePlan (#{TODAYS_DATE})",
-                      size: '600x400',
-                      theme: :thirty7signals,
-                      data: [gpo_table.by_col['Goals'], gpo_table.by_col['Projects'], gpo_table.by_col['Other Notes']],
-                      # min_value: 0, # scale this properly
-                      axis_range: [[0, 150, 10], [0, 50, 10]], # FIXME: Why does this have to be specified?
-                      line_colors: 'ff8888,88ff88,8888ff',
-                      legend: ['# Goals', '# Projects', '# Other notes'],
-                      axis_with_labels: %w[y],
-                      filename: 'gno.png')
-  # Record file in filesystem
-  puts chart2.axis_range
-  chart2.file
-  puts '-> gno.png'
-
-  # Create chart to show difference between complete and open tasks over time
-  goal_diff = subtract(gpo_table.by_col['Goal Done'], add(gpo_table.by_col['G Overdue'], gpo_table.by_col['G Undated']))
-  project_diff = subtract(gpo_table.by_col['Project Done'], add(gpo_table.by_col['P Overdue'], gpo_table.by_col['P Undated']))
-  other_diff   = subtract(gpo_table.by_col['Other Done'].compact, add(gpo_table.by_col['Overdue'].compact, gpo_table.by_col['Undated'].compact))
-  chart3 = Gchart.new(type: 'line',
-                      title: "Difference between open and completed Tasks in NotePlan (#{TODAYS_DATE})",
-                      size: '600x400',
-                      theme: :thirty7signals,
-                      data: [goal_diff, project_diff, other_diff],
-                      min_value: 0, # scale this properly
-                      line_colors: 'ff2222,22ff22,2222ff',
-                      legend: ['Goal tasks', 'Project tasks', 'Other tasks'],
-                      axis_with_labels: %w[x y],
-                      filename: 'task_diffs.png')
-  # Record file in filesystem
-  chart3.file
-  puts '-> task_diffs.png'
-
-# FIXME: Can't get this GoogleChart to work. Or is it doing just first 11 items or so?
-# chart_td = Gchart.new(type: 'bar',
-#                       stacked: false,
-#                       title: "When tasks were done (6 months to #{TODAYS_DATE})",
-#                       # size: '1200x600',
-#                       # :height => '500',
-#                       # bar_width_and_spacing: { spacing: 2, width: 5 },
-#                       data: [done_goal_last6m, done_project_last6m, done_other_last6m],
-#                       # :min_value => 0, # scale this properly
-#                       bar_colors: '2222ff,ff0000,00ff00',
-#                       filename: 'done_tasks_6m.png') # define chart
-# chart_td.file # write chart out
-# puts '-> done_tasks_6m.png'
-
-# but this example does, grrr.
-# temp = Gchart.new(type: 'bar',
-#                   data: [[1, 2, 4, 67, 100, 41, 234], [45, 23, 67, 12, 67, 300, 250]],
-#                   title: 'SD Ruby Fu level',
-#                   legend: %w[matt patrick],
-#                   # bg: { color: '76A4FB', type: 'gradient' },
-#                   stacked: false,
-#                   bar_colors: 'ff0000,00ff00',
-#                   filename: 'temp.png')
-# temp.file
-rescue StandardError => e
-  puts "ERROR: Hit '#{e.exception.message}' when creating graphs using GoogleCharts API".colorize(WarningColour)
-end
