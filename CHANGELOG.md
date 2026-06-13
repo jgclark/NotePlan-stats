@@ -1,11 +1,18 @@
 # CHANGELOG
 
 ## for npStats
+## v1.9.0, 2026-06-13
+- Now finds project/area/goal notes, and cancelled/completed status by looking in **frontmatter** as well as the single 'metadata line' at the top of a note.
+- Add more folders to ignore
+- Properly ignore future calendar notes
+- Now ignores project-like notes marked as `#paused`
+- Other small fixes identified by @Cursor
+
 ## v1.8.1, 2022-12-31
 - [Changed] NP 3.8 adds checklists; these are now ignored in the task completion stats
 
 ## v1.8.0, 2022-09-25
-- [Fixed] sorted folder exlusions, though I don't think it's made a difference in the output
+- [Fixed] sorted folder exclusions, though I don't think it's made a difference in the output
 
 ## v1.7.0, 2022-06-26
 - [Added] supports new Weekly notes, available with NotePlan 3.6.0.
@@ -47,38 +54,42 @@
 ### v1.3.2, 24.7.2020
 - [New] Make CloudKit the default file storage location
 
-## v1.3.0, 18.4.2020
+### v1.3.0, 18.4.2020
 - [New] Allow for CloudKit as a storage location, to suit new NP3 beta builds (issue #3)
 - [Fix] Ignore empty NP files
 
-## v1.2.2, 18.4.2020
+### v1.2.2, 18.4.2020
 - [Change] Now ignore cancelled tasks, as they were wrongly getting counted in ?undated? open tasks
 
-## v1.2.1, 18.4.2020
+### v1.2.1, 18.4.2020
 - [Fix] Some notes had characters not allowed in US-ASCII. So opened as UTF-8 instead.
 
-## v1.2.0, 27.3.2020
+### v1.2.0, 27.3.2020
 - Improve README
 
-## v1.1.0, 15.3.2020
+### v1.1.0, 15.3.2020
 - [New] support folders (sub-directories) for notes in NP 2.4+ (issue #1)
 - [New] add command line options --nofile and --verbose
 
-## v1.0.3, 14.3.2020
+### v1.0.3, 14.3.2020
 - Code clea up
 
-## v1.0.2, 8.3.2020
+### v1.0.2, 8.3.2020
 - [New] Add task counting script
 - [New] Add colouring to screen output
 - [New] Add file CSV output
 
-## v1.1, 29.2.2020
+### v1.1, 29.2.2020
 - Split a single earlier script into these two.
 
-## v1.0.1, 11.2.2020
+### v1.0.1, 11.2.2020
 Initial load into this GitHub project.
 
+---
+
 ## for npTagStats
+Note: this was deleted on 2026-06-13 as it was long ago superseded by my **Habits & Summaries plugin**, and was now significantly out of date.
+
 ### v1.7.1, 1.1.2023
 - [New] Adds support for NotePlan's new monthly, quarterly and yearly notes
 

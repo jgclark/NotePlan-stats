@@ -1,15 +1,16 @@
 #!/usr/bin/env ruby
 #-------------------------------------------------------------------------------
 # NotePlan Task Stats Summariser
-# (c) JGC, v1.8.2, 2025-05-22
+# (c) JGC, v1.9.0, 2026-06-13
 #-------------------------------------------------------------------------------
 # Script to give stats on various tags in NotePlan's Notes and Daily files.
 #
-# It finds and summarises todos/tasks in note and calendar files:
+# It finds and summarises todos/tasks in note and calendar (D/W/M/Q) files:
 # - only covers active notes (not archived or cancelled)
 # - counts open tasks, open undated tasks, done tasks, future tasks
 # - breaks down by Goals/Projects/Other
 # - ignores tasks in a #template section
+# - cannot read notes in (Team)Spaces folders
 #
 # It writes output to screen and to CSV files:
 # - current summary of all G/P/O open/done/future to task_stats.csv
@@ -22,7 +23,7 @@
 # For more information please see the GitHub repository:
 #   https://github.com/jgclark/NotePlan-stats/
 #-------------------------------------------------------------------------------
-VERSION = '1.8.1'.freeze
+VERSION = '1.9.0'.freeze
 
 require 'date'
 require 'time'
@@ -33,7 +34,8 @@ require 'find'
 # User-settable constants
 DATE_FORMAT = '%d.%m.%y'.freeze
 DATE_TIME_FORMAT = '%d %b %Y %H:%M'.freeze
-FOLDERS_TO_IGNORE = ['@Archive', '@Trash', '@Templates', '@Searches', '@Conflicted Copies', 'TEST', '@Reviews', 'Saved Searches', 'Summaries'].freeze 
+FOLDERS_TO_IGNORE = ['@Archive', '@Trash', '@Templates', '@Searches', 'TEST', '@Reviews', 'Saved Searches', 'Summaries', '@WindowSets', '@Demo', '@Forms', '@Meta'].freeze 
+# also set NPEXTRAS environment variable if needed for location of file output
 
 # Constants
 USER_DIR = ENV['HOME'] # pull home directory from environment
@@ -41,20 +43,26 @@ NPEXTRAS = ENV['NPEXTRAS'] # pull output storage folder from environment
 DROPBOX_DIR = "#{USER_DIR}/Dropbox/Apps/NotePlan/Documents".freeze
 ICLOUDDRIVE_DIR = "#{USER_DIR}/Library/Mobile Documents/iCloud~co~noteplan~NotePlan/Documents".freeze
 CLOUDKIT_DIR = "#{USER_DIR}/Library/Containers/co.noteplan.NotePlan3/Data/Library/Application Support/co.noteplan.NotePlan3".freeze
-NP_BASE_DIR = if Dir.exist?(CLOUDKIT_DIR)
+
+# Check that a candidate path looks like a NotePlan data directory (Notes/ or Calendar/ present).
+def np_storage_valid?(base_dir)
+  Dir.exist?(base_dir) && (Dir.exist?(File.join(base_dir, 'Notes')) || Dir.exist?(File.join(base_dir, 'Calendar')))
+end
+
+NP_BASE_DIR = if np_storage_valid?(CLOUDKIT_DIR)
                 CLOUDKIT_DIR
-              elsif Dir.exist?(ICLOUDDRIVE_DIR)
+              elsif np_storage_valid?(ICLOUDDRIVE_DIR)
                 ICLOUDDRIVE_DIR
-              elsif Dir.exist?(DROPBOX_DIR)
+              elsif np_storage_valid?(DROPBOX_DIR)
                 DROPBOX_DIR
               end
 NP_CALENDAR_DIR = "#{NP_BASE_DIR}/Calendar".freeze
 NP_NOTE_DIR = "#{NP_BASE_DIR}/Notes".freeze
 # NB: a user-set directory, not the usual CloudKit directory, as non-NotePlan folders won't sync from it.
-OUTPUT_DIR = if Dir.exist?(NPEXTRAS)
-               NPEXTRAS # prefer to use the NPEXTRAS directory if it exists
+OUTPUT_DIR = if NP_BASE_DIR == CLOUDKIT_DIR
+               ENV['NPEXTRAS'] # save in user-specified directory as it won't be sync'd in a CloudKit directory
              else
-               "#{NP_NOTE_DIR}/Summaries".freeze # but otherwise can store in Summaries/ directory in NP
+               "#{NP_BASE_DIR}/Summaries".freeze # but otherwise can store in Summaries/ directory in NP
              end
 TODAYS_DATE = Date.today # can't work out why this needs to be a 'constant' to work -- something about visibility, I suppose
 DATE_TODAY_YYYYMMDD = TODAYS_DATE.strftime('%Y%m%d')
@@ -109,6 +117,88 @@ def print_table(table, margin_width = 2)
   end)
 end
 
+# Strip optional surrounding quotes from a YAML frontmatter value.
+def strip_yaml_value(value)
+  value.to_s.strip.gsub(/\A["'](.*)["']\z/, '\1')
+end
+
+# Parse a NotePlan --- frontmatter block from note lines.
+# @return [Hash] :attributes (key/value strings), :end_index (closing --- line index, or -1)
+def parse_frontmatter_block(lines)
+  return { attributes: {}, end_index: -1 } unless lines[0]&.strip == '---'
+
+  attributes = {}
+  end_index = -1
+  (1...lines.length).each do |i|
+    if lines[i].strip == '---'
+      end_index = i
+      break
+    end
+    trimmed = lines[i].strip
+    next if trimmed.empty? || trimmed.start_with?('#')
+
+    colon_index = trimmed.index(':')
+    next unless colon_index&.positive?
+
+    key = trimmed[0...colon_index].strip
+    attributes[key] = strip_yaml_value(trimmed[(colon_index + 1)..])
+  end
+  { attributes: attributes, end_index: end_index }
+end
+
+# Find the first body metadata-like line after frontmatter (legacy migration remnant).
+def body_metadata_line_index(lines, end_fm_index)
+  start = end_fm_index >= 0 ? end_fm_index + 1 : 0
+  (start...lines.length).each do |i|
+    line = lines[i].strip
+    return i if line.match?(/^(project|metadata|review|reviewed):/i) ||
+                  line.match?(/^@\w[\w\-.]*\([^)]*\)\s*$/) ||
+                  line.match?(/^#(?!#)\S/)
+  end
+  nil
+end
+
+# Build a single metadata string for hashtag/mention scanning.
+def build_metadata_text(attributes, legacy_metadata_line, body_metadata_line)
+  parts = []
+  parts << attributes['project'] if attributes['project'] && !attributes['project'].empty?
+  parts << attributes['metadata'] if attributes['metadata'] && !attributes['metadata'].empty?
+  parts << legacy_metadata_line.strip if legacy_metadata_line && !legacy_metadata_line.strip.empty?
+  parts << body_metadata_line.strip if body_metadata_line && !body_metadata_line.strip.empty?
+  parts.join(' ')
+end
+
+# True when #paused appears in frontmatter project:/metadata: or legacy/body metadata lines.
+def note_is_paused?(attributes, legacy_metadata_line, body_metadata_line)
+  %w[project metadata].any? { |k| attributes[k]&.match?(/#paused/) } ||
+    legacy_metadata_line&.match?(/#paused/) ||
+    body_metadata_line&.match?(/#paused/)
+end
+
+# Derive completed/cancelled/active status from frontmatter attributes and metadata text.
+def derive_note_status(attributes, metadata_text, legacy_metadata_line, body_metadata_line)
+  completed_date = nil
+  metadata_text.scan(%r{(@completed|@finished)\(([0-9\-\./]{6,10})\)}) { |m| completed_date = Date.parse(m[1]) }
+
+  %w[completed finished].each do |key|
+    next if completed_date || attributes[key].to_s.strip.empty?
+
+    completed_date = Date.parse(attributes[key])
+  rescue ArgumentError
+    # ignore invalid separate frontmatter date values
+  end
+
+  is_completed = !completed_date.nil?
+  is_cancelled = metadata_text.match?(/#cancelled|#someday/) ||
+                 !attributes['cancelled'].to_s.strip.empty?
+  is_archived = metadata_text.match?(/#archive/) ||
+                !attributes['archive'].to_s.strip.empty?
+  is_paused = note_is_paused?(attributes, legacy_metadata_line, body_metadata_line)
+  is_active = !(is_archived || is_completed || is_cancelled || is_paused)
+
+  { completed_date: completed_date, is_completed: is_completed, is_cancelled: is_cancelled, is_active: is_active }
+end
+
 #-------------------------------------------------------------------------
 # Class definitions
 #-------------------------------------------------------------------------
@@ -132,19 +222,41 @@ class NPCalendar
     @id = id
     @open_overdue = @waiting = @done = @future = @open_undated = 0
     @is_future = false
-    header = ''
+    basename = File.basename(@filename)
 
     # is this a future date?
-    if @filename =~ /\d{8}\.(txt|md)/
+    if basename =~ /\d{8}\.(txt|md)/
       # for daily notes
       # mark this as a future date if the filename YYYYMMDD part as a string is greater than DateToday in YYYYMMDD format
-      @is_future = true if @filename[0..7] > DATE_TODAY_YYYYMMDD
-    elsif @filename =~ /\d{4}-W\d{2}\.(txt|md)/
+      @is_future = true if basename[0..7] > DATE_TODAY_YYYYMMDD
+    elsif basename =~ /\d{4}-W\d{2}\.(txt|md)/
       # for weekly notes
       # mark this as a future date if the date representing the start of the week of filename YYYY-Wnn as a string is greater than DateToday in YYYYMMDD format
-      start_of_week_date = Date.parse(@filename[0..7]).to_s.gsub('-', '')
+      start_of_week_date = Date.parse(basename[0..7]).to_s.gsub('-', '')
       log_message_screen("  initialising Weekly note '#{@filename}' (date=#{start_of_week_date})")
       @is_future = true if start_of_week_date > DATE_TODAY_YYYYMMDD
+    elsif basename =~ /\d{4}-\d{2}\.(txt|md)/
+      # for monthly notes (Date.parse fails on YYYY-MM; use strptime instead)
+      start_of_month_date = Date.strptime(basename[0..6], '%Y-%m').strftime('%Y%m%d')
+      log_message_screen("  initialising Monthly note '#{@filename}' (date=#{start_of_month_date})")
+      @is_future = true if start_of_month_date > DATE_TODAY_YYYYMMDD
+    elsif basename =~ /\d{4}-Q[1-4]\.(txt|md)/
+      # for quarterly notes (strptime does not recognise quarters, so map to first month of quarter)
+      q = basename[6]
+      start_of_quarter_date = case q
+                              when '1' then "#{basename[0..3]}0101"
+                              when '2' then "#{basename[0..3]}0401"
+                              when '3' then "#{basename[0..3]}0701"
+                              when '4' then "#{basename[0..3]}1001"
+                              else ''
+                              end
+      log_message_screen("  initialising Quarterly note '#{@filename}' (date=#{start_of_quarter_date})")
+      @is_future = true if !start_of_quarter_date.empty? && start_of_quarter_date > DATE_TODAY_YYYYMMDD
+    end
+
+    if @is_future
+      log_message_screen("  skipping future calendar note '#{@filename}'")
+      return
     end
 
     # Open file and read in. We've already checked it's not empty.
@@ -152,14 +264,13 @@ class NPCalendar
     File.open(@filename, 'r', encoding: 'utf-8') do |f|
       # Read all lines
       f.each_line do |line|
-        header += line # join all lines together for later scanning
         # Counting number of open, waiting, done tasks etc.
-        if line =~ /^\s*\*\s+/ && line =~ /\[x\]/
+        if line =~ /^\s*\*\s+/ && line =~ /\[x\]/i
           @done += 1 # count up the completed task
           # Also make a note of the done date in the $cal_done_dates array
           done_date_string = line.scan(/@done\((\d{4}-\d{2}-\d{2}.*)/).join('')
           if done_date_string.empty?
-            warning_message_screen("    Warning: no @done(...) date found in '#{line.chomp}'")
+            # warning_message_screen("    Warning: no @done(...) date found in '#{line.chomp}'")
           else
             completed_date = Date.strptime(done_date_string, '%Y-%m-%d') # we only want the first item, but don't know why it needs to be first of the first
             c_d_ordinal = completed_date.strftime('%Y%j')
@@ -191,7 +302,8 @@ class NPCalendar
   rescue EOFError
     # this file has less than two lines, but we can ignore the problem for the stats
   rescue StandardError => e
-    error_message_screen("ERROR: Hit #{e.exception.message} when initialising #{@filename} line <#{line}> in NPCalendar")
+    line_info = defined?(line) && line ? " line <#{line}>" : ''
+    error_message_screen("ERROR: Hit #{e.exception.message} when initialising #{@filename}#{line_info} in NPCalendar")
   end
 end
 
@@ -229,77 +341,85 @@ class NPNote
     @is_goal = false
     @done_dates = Hash.new(0) # Hash of dates for this note, with new items defaulting to zero
 
-    # initialise other variables (that don't need to persist with the class instance)
-    headerLine = @metadata_line = nil
-
     log_message_screen("  Initializing NPNote for #{this_file}")
-    # Open file and read the first two lines
-    # FIXME: This won't work properly with frontmatter
-    File.open(this_file, 'r', encoding: 'utf-8') do |f|
-      headerLine = f.readline
-      @metadata_line = f.readline
+    lines = File.readlines(this_file, encoding: 'utf-8', chomp: true)
 
-      # Now process line 2 (rest of metadata)
-      # the following regex matches returns an array with one item, so make a string (by join), and then parse as a date
-      @metadata_line.scan(%r{(@completed|@finished)\(([0-9\-\./]{6,10})\)}) { |m| @completed_date = Date.parse(m.join) }
+    fm = parse_frontmatter_block(lines)
+    attributes = fm[:attributes]
+    end_fm_index = fm[:end_index]
 
-      # make completed if @completed_date set
-      @is_completed = true unless @completed_date.nil?
-      # make cancelled if #cancelled or #someday flag set
-      @is_cancelled = true if @metadata_line =~ /(#cancelled|#someday)/
-      # set note to non-active if #archive is set, or cancelled, completed.
-      @is_active = false if @metadata_line == /#archive/ || @is_completed || @is_cancelled
+    if end_fm_index >= 0
+      @title = attributes['title']
+      body_start_index = end_fm_index + 1
+      legacy_metadata_line = nil
+    else
+      @title = lines[0]
+      legacy_metadata_line = lines[1]
+      body_start_index = 2
+    end
 
-      # Note if this is a #project or #goal
-      @is_project = true if @metadata_line =~ /#project/
-      @is_goal    = true if @metadata_line =~ /#goal/
+    body_meta_idx = body_metadata_line_index(lines, end_fm_index)
+    body_metadata_line = body_meta_idx ? lines[body_meta_idx] : nil
+    @metadata_line = build_metadata_text(attributes, legacy_metadata_line, body_metadata_line)
 
-      # Now read through rest of file, counting number of open, waiting, done tasks etc.
-      template_section_header_level = 0 # default to not in a template section
-      f.each_line do |line|
-        line_header_level = 0
-        line.scan(/^(#+)\s/) { |m| line_header_level = m[0].length }
-        if line_header_level.positive?
-          # is this a same- or higher-level header? If so take us out of a #template section
-          template_section_header_level = 0 if line_header_level.positive? && line_header_level <= template_section_header_level
-          # see if this line takes us into a #template section
-          template_section_header_level = line_header_level if line =~ /#template/
+    status = derive_note_status(attributes, @metadata_line, legacy_metadata_line, body_metadata_line)
+    @completed_date = status[:completed_date]
+    @is_completed = status[:is_completed]
+    @is_cancelled = status[:is_cancelled]
+    @is_active = status[:is_active]
+
+    # Note if this is a #project or #goal
+    @is_project = true if @metadata_line =~ /#project/
+    @is_goal    = true if @metadata_line =~ /#goal/
+
+    log_message_screen("    metadata='#{@metadata_line}' active=#{@is_active} goal=#{@is_goal} project=#{@is_project}") if $verbose
+
+    # Read through note body, counting number of open, waiting, done tasks etc.
+    template_section_header_level = 0 # default to not in a template section
+    (body_start_index...lines.length).each do |line_idx|
+      line = lines[line_idx]
+      line_header_level = 0
+      line.scan(/^(#+)\s/) { |m| line_header_level = m[0].length }
+      if line_header_level.positive?
+        # is this a same- or higher-level header? If so take us out of a #template section
+        template_section_header_level = 0 if line_header_level.positive? && line_header_level <= template_section_header_level
+        # see if this line takes us into a #template section
+        template_section_header_level = line_header_level if line =~ /#template/
+      end
+      # log_message_screen("#{template_section_header_level}/#{line_header_level}: #{line}")
+      if line =~ /^\s*\*\s+/ && line =~ /\[x\]/i
+        # a completed task (using [x] format)
+        @done += 1
+        # For each done task, make a note of the done date in the $done_dates array
+        # (But sometimes done date is missing; if so, have to ignore.)
+        line_scan = line.scan(/@done\((\d{4}-\d{2}-\d{2})/).join('')
+        # log_message_screen("  #{line_scan} (#{line_scan.class})")
+        if line_scan.empty?
+          warning_message_screen("    Warning: no @done(...) date found in '#{line}'")
+        else
+          completed_date = Date.strptime(line_scan, '%Y-%m-%d') # we only want the first item, but don't know why it needs to be first of the first
+          c_d_ordinal = completed_date.strftime('%Y%j')
+          @done_dates[c_d_ordinal] += 1
         end
-        # log_message_screen("#{template_section_header_level}/#{line_header_level}: #{line.chomp}")
-        if line =~ /^\s*\*\s+/ && line =~ /\[x\]/
-          # a completed task (using [x] format)
-          @done += 1
-          # For each done task, make a note of the done date in the $done_dates array
-          # (But sometimes done date is missing; if so, have to ignore.)
-          line_scan = line.scan(/@done\((\d{4}-\d{2}-\d{2}).*/).join('')
-          # log_message_screen("  #{line_scan} (#{line_scan.class})")
-          if line_scan.empty?
-            warning_message_screen("    Warning: no @done(...) date found in '#{line.chomp}'")
+      elsif line =~ /^\s*\*\s+/ && line !~ /\[-\]/ # a task, but not cancelled (and by implication not completed)
+        unless template_section_header_level.positive?
+          # we're not in a #template so continue processing
+          if line =~ /#waiting/
+            @waiting += 1 # count this as waiting not open
           else
-            completed_date = Date.strptime(line_scan, '%Y-%m-%d') # we only want the first item, but don't know why it needs to be first of the first
-            c_d_ordinal = completed_date.strftime('%Y%j')
-            @done_dates[c_d_ordinal] += 1
-          end
-        elsif line =~ /^\s*\*\s+/ && line !~ /\[-\]/ # a task, but not cancelled (and by implication not completed)
-          unless template_section_header_level.positive?
-            # we're not in a #template so continue processing
-            if line =~ /#waiting/
-              @waiting += 1 # count this as waiting not open
-            else
-              # Ideally, find inbound copy of a scheduled date (<date) and ignore
-              # However, there's no consistency in my data for when <date and >date are used, so won't do this now.
-              # Find if this includes a scheduled date
-              scheduledDate = nil
-              line.scan(/\s>(\d{4}-\d{2}-\d{2})/) { |m| scheduledDate = Date.parse(m.join) }
-              if !scheduledDate.nil?
-                if scheduledDate > TODAYS_DATE
-                  @future += 1 # count this as future
-                else
-                  @open_overdue += 1 # count this as dated open (overdue)
-                end
+            # Ideally, find inbound copy of a scheduled date (<date) and ignore
+            # However, there's no consistency in my data for when <date and >date are used, so won't do this now.
+            # Find if this includes a scheduled date
+            scheduledDate = nil
+            line.scan(/\s>(\d{4}-\d{2}-\d{2})/) { |m| scheduledDate = Date.parse(m.join) }
+            if !scheduledDate.nil?
+              if scheduledDate > TODAYS_DATE
+                @future += 1 # count this as future
               else
-                @open_undated += 1 # count this as undated open
+                @open_overdue += 1 # count this as dated open (overdue)
               end
+            else
+              @open_undated += 1 # count this as undated open
             end
           end
         end
@@ -415,7 +535,7 @@ if notes_to_work_on.positive? # if we have some notes to work on ...
     if n.is_goal
       tgn += 1
       tgd += n.done
-      tgdh = ddh.merge!(tgdh) { |_key, oldval, newval| newval + oldval }
+      tgdh.merge!(ddh) { |_key, oldval, newval| oldval + newval }
       tgo += n.open_overdue
       tgu += n.open_undated
       tgw += n.waiting
@@ -423,7 +543,7 @@ if notes_to_work_on.positive? # if we have some notes to work on ...
     elsif n.is_project
       tpn += 1
       tpd += n.done
-      tpdh = ddh.merge!(tpdh) { |_key, oldval, newval| newval + oldval }
+      tpdh.merge!(ddh) { |_key, oldval, newval| oldval + newval }
       tpo += n.open_overdue
       tpu += n.open_undated
       tpw += n.waiting
@@ -431,7 +551,7 @@ if notes_to_work_on.positive? # if we have some notes to work on ...
     else
       ton += 1
       tod += n.done
-      todh = ddh.merge!(todh) { |_key, oldval, newval| newval + oldval }
+      todh.merge!(ddh) { |_key, oldval, newval| oldval + newval }
       too += n.open_overdue
       tou += n.open_undated
       tow += n.waiting
@@ -449,23 +569,19 @@ end
 calFiles = [] # to hold all relevant calendar objects
 
 unless options[:no_calendar]
-  # Read metadata for all note files in the NotePlan directory
-  # (and sub-directories from v2.5, ignoring special ones starting '@')
+  # Read calendar note files in the top-level Calendar directory only
   cal_entries_to_work_on = 0 # number of calendar entries to work on
   begin
-    if Dir.exist?(NP_CALENDAR_DIR)
-      Dir.chdir(NP_CALENDAR_DIR)
-      Dir.glob(['**/*.txt', '**/*.md']).each do |this_file|
-        # ignore this file if the directory starts with '@'
-        next unless this_file =~ /^[^@]/ # as can't get file glob including [^@] to work
-        # ignore this file if it's empty
-        next if File.zero?(this_file)
+    Dir.chdir(NP_CALENDAR_DIR)
+    Dir.glob(['*.txt', '*.md']).each do |this_file|
+      # ignore this file if it's empty
+      next if File.zero?(this_file)
 
-        calFiles[cal_entries_to_work_on] = NPCalendar.new(this_file, cal_entries_to_work_on)
-        cal_entries_to_work_on += 1
-      end
-    else
-      warning_message_screen("Warning: Calendar directory '#{NP_CALENDAR_DIR}' does not exist or is not accessible.")
+      cal = NPCalendar.new(this_file, cal_entries_to_work_on)
+      next if cal.is_future
+
+      calFiles[cal_entries_to_work_on] = cal
+      cal_entries_to_work_on += 1
     end
   rescue StandardError => e
     error_message_screen("ERROR: Hit #{e.exception.message} when reading Calendar directory")
@@ -473,6 +589,8 @@ unless options[:no_calendar]
 
   if cal_entries_to_work_on.positive? # if we have some notes to work on ...
     calFiles.each do |cal|
+      next if cal.is_future
+
       # count tasks
       tod += cal.done
       too += cal.open_overdue
