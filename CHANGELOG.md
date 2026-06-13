@@ -92,7 +92,7 @@ Initial load into this GitHub project.
 
 ## for npGraph
 ### v1.1.0
-- New command line option `--start-date YYYY-MM-DD` (alias `-s`) to set the starting date for the 'open tasks' graph
+- New command line option `--start-date YYYY-MM-DD` (alias `-s`) to set the starting date for the 'open tasks' graph. Defaults to 11.5.2026 when v2 of npStats was first used.
 
 ### v1.0.0
 - include Area stats in the output "Open tasks" graph

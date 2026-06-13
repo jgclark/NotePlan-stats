@@ -48,7 +48,7 @@
 # From v0.9 of this script, the .gp files use column titles, not column numbers, so that the data can be more easily understood and modified.
 #-------------------------------------------------------------------------------
 
-VERSION = '1.0.0'.freeze
+VERSION = '1.1.0'.freeze
 
 require 'date'
 require 'time'
@@ -100,7 +100,7 @@ DONE_HEATMAP_FILENAME = "#{IO_DIR}/done_tasks_matrix.csv".freeze
 DONE_PERIOD_WEEKS = 26 # 26 weeks = 6 months
 NET_LOOKBACK_DAYS = DONE_PERIOD_WEEKS * 7 # #days
 DATE_OUT_FORMAT = '%d %b' # when writing new CSVs. Ignoring %Y now.
-OPEN_TASKS_DEFAULT_START_DATE = Date.new(2026, 1, 1) # for open tasks graph, if no start date given on command line
+OPEN_TASKS_DEFAULT_START_DATE = Date.new(2026, 5, 11) # for open tasks graph, if no start date given on command line. This is the start of using v2 of the npStats.rb script
 OPEN_TASKS_OUTPUT_FILENAME = "#{IO_DIR}/task_stats_to_graph.csv".freeze
 
 # Colours, using the colorization gem

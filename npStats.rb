@@ -50,6 +50,34 @@ def np_storage_valid?(base_dir)
   Dir.exist?(base_dir) && (Dir.exist?(File.join(base_dir, 'Notes')) || Dir.exist?(File.join(base_dir, 'Calendar')))
 end
 
+def find_backup_base_dir(backup_date_string)
+  backups_dir = File.join(CLOUDKIT_DIR, 'Backups')
+  return nil unless backup_date_string && Dir.exist?(backups_dir)
+
+  candidates = Dir.children(backups_dir).select do |entry|
+    File.directory?(File.join(backups_dir, entry)) && entry.start_with?("#{backup_date_string} ")
+  end
+  return nil if candidates.empty?
+
+  candidates.sort.reverse_each do |entry|
+    candidate = File.join(backups_dir, entry)
+    return candidate if np_storage_valid?(candidate)
+  end
+  nil
+end
+
+def determine_base_dir(backup_date_string = nil)
+  return find_backup_base_dir(backup_date_string) if backup_date_string
+
+  if np_storage_valid?(CLOUDKIT_DIR)
+    CLOUDKIT_DIR
+  elsif np_storage_valid?(ICLOUDDRIVE_DIR)
+    ICLOUDDRIVE_DIR
+  elsif np_storage_valid?(DROPBOX_DIR)
+    DROPBOX_DIR
+  end
+end
+
 NP_BASE_DIR = if np_storage_valid?(CLOUDKIT_DIR)
                 CLOUDKIT_DIR
               elsif np_storage_valid?(ICLOUDDRIVE_DIR)
@@ -377,7 +405,7 @@ class NPNote
     @is_project = true if @metadata_line =~ /#project/
     @is_area    = true if @metadata_line =~ /#area/
 
-    log_message_screen("    metadata='#{@metadata_line}' active=#{@is_active} goal=#{@is_goal} project=#{@is_project}") if $verbose
+    # log_message_screen("    metadata='#{@metadata_line}' active=#{@is_active} goal=#{@is_goal} project=#{@is_project}") if $verbose
 
     # Read through note body, counting number of open, waiting, done tasks etc.
     template_section_header_level = 0 # default to not in a template section
@@ -449,8 +477,17 @@ opt_parser = OptionParser.new do |opts|
   options[:verbose] = false
   options[:no_file] = false
   options[:no_calendar] = false
+  options[:backup_date] = nil
   opts.on('-c', '--nocal', 'Do not count daily calendar notes') do
     options[:no_calendar] = true
+  end
+  opts.on('-b DATE', '--from-backup DATE', 'Read from CLOUDKIT_DIR/Backups/YYYY-MM-DD HH-MM-SS backup folder') do |date|
+    begin
+      Date.strptime(date, '%Y-%m-%d')
+    rescue ArgumentError
+      raise OptionParser::InvalidArgument, date
+    end
+    options[:backup_date] = date
   end
   opts.on('-h', '--help', 'Show help') do
     message_screen(opts)
@@ -466,16 +503,58 @@ end
 opt_parser.parse! # parse out options, leaving file patterns to process
 $verbose = options[:verbose]
 
+base_dir = determine_base_dir(options[:backup_date])
+if base_dir.nil?
+  if options[:backup_date]
+    error_message_screen("ERROR: Could not locate backup folder for #{options[:backup_date]} under #{CLOUDKIT_DIR}/Backups")
+  else
+    error_message_screen("ERROR: Could not locate a valid NotePlan data directory under CLOUDKIT_DIR, iCloud Drive or Dropbox")
+  end
+  exit 1
+end
+np_note_dir = File.join(base_dir, 'Notes')
+np_calendar_dir = File.join(base_dir, 'Calendar')
+output_dir = if base_dir == CLOUDKIT_DIR || base_dir.start_with?(File.join(CLOUDKIT_DIR, 'Backups'))
+               ENV['NPEXTRAS']
+             else
+               File.join(base_dir, 'Summaries')
+             end
+
+# Informational logging about selected base directory / backup
+if options[:backup_date]
+  message_screen("Using backup date: #{options[:backup_date]}")
+end
+message_screen("Using base directory: #{base_dir}")
+message_screen("Notes dir: #{np_note_dir}  Calendar dir: #{np_calendar_dir}")
+
 # Log time
 time_now = Time.now
 time_now_format = time_now.strftime(DATE_TIME_FORMAT)
+
+# Determine CSV timestamp: in backup mode use the backup folder timestamp, otherwise use now
+if options[:backup_date]
+  backup_label = File.basename(base_dir)
+  begin
+    dt = DateTime.strptime(backup_label, '%Y-%m-%d %H-%M-%S')
+    csv_timestamp = dt.strftime(DATE_TIME_FORMAT)
+  rescue StandardError
+    begin
+      d = Date.strptime(options[:backup_date], '%Y-%m-%d')
+      csv_timestamp = d.strftime(DATE_TIME_FORMAT)
+    rescue StandardError
+      csv_timestamp = options[:backup_date]
+    end
+  end
+else
+  csv_timestamp = time_now_format
+end
 
 if options[:no_calendar]
   message_screen("Running npStats v#{VERSION} at #{time_now_format}\n- for files (ignoring Calendar files and folders #{FOLDERS_TO_IGNORE})")
 else
   message_screen("Running npStats v#{VERSION} at #{time_now_format}\n- for files (ignoring folders #{FOLDERS_TO_IGNORE})")
 end
-message_screen("- writing output files to #{OUTPUT_DIR}/") unless options[:no_file]
+message_screen("- writing output files to #{output_dir}/") unless options[:no_file]
 
 #=======================================================================================
 # Note stats
@@ -491,9 +570,9 @@ todh = Hash.new(0)
 notes_to_work_on = 0 # number of notes to work on
 begin
   # our file globbing needs are too complex for simple Dir.glob, so using Find.find instead
-  if Dir.exist?(NP_NOTE_DIR)
-    Dir.chdir(NP_NOTE_DIR)
-    Find.find(NP_NOTE_DIR) do |path|
+  if Dir.exist?(np_note_dir)
+    Dir.chdir(np_note_dir)
+    Find.find(np_note_dir) do |path|
       name = File.basename(path)
       if FileTest.directory?(path)
         if FOLDERS_TO_IGNORE.include?(name)
@@ -586,7 +665,7 @@ unless options[:no_calendar]
   # Read calendar note files in the top-level Calendar directory only
   cal_entries_to_work_on = 0 # number of calendar entries to work on
   begin
-    Dir.chdir(NP_CALENDAR_DIR)
+    Dir.chdir(np_calendar_dir)
     Dir.glob(['*.txt', '*.md']).each do |this_file|
       # ignore this file if it's empty
       next if File.zero?(this_file)
@@ -642,17 +721,17 @@ main_message_screen("TOTAL\t#{tn}\t#{td}\t#{to}\t#{tu}\t#{tw}\t#{tf}")
 unless options[:no_file]
   begin
     output = format('%s,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d',
-                    time_now_format, tgn, tpn, tan, ton,
+            csv_timestamp, tgn, tpn, tan, ton,
                     tgd, tgo, tgu, tgw, tgf,
                     tpd, tpo, tpu, tpw, tpf,
                     tad, tao, tau, taw, taf,
                     tod, too, tou, tow, tof,
                     td, to, tu, tw, tf)
-    filepath = OUTPUT_DIR + '/task_stats.csv'
+    filepath = output_dir + '/task_stats.csv'
     f = File.open(filepath, 'a') # append
     f.puts output
     f.close
-    message_screen("Written this summary to #{OUTPUT_DIR}/task_stats.csv")
+    message_screen("Written this summary to #{output_dir}/task_stats.csv")
   rescue StandardError => e
     error_message_screen("ERROR: Hit #{e.exception.message} when writing out summary to #{filepath}")
   end
@@ -731,7 +810,7 @@ done_dates = dds
 unless options[:no_file]
   begin
     # FIXME: something making last weekend not get written out early Mon morning
-    filepath = OUTPUT_DIR + '/task_done_dates.csv'
+    filepath = output_dir + '/task_done_dates.csv'
     f = File.open(filepath, 'w') # overwrite
     total_done_count = 0
     f.puts 'Date,Goals,Projects,Areas,Others' # headers
@@ -746,7 +825,7 @@ unless options[:no_file]
       total_done_count += d[1] + d[2] + d[3] + d[4]
     end
     f.close
-    message_screen("Written summary of when the #{total_done_count} tasks were completed to #{OUTPUT_DIR}/task_done_dates.csv")
+    message_screen("Written summary of when the #{total_done_count} tasks were completed to #{output_dir}/task_done_dates.csv")
   rescue StandardError => e
     error_message_screen("ERROR: Hit #{e.exception.message} when writing out summary to #{filepath}")
   end
