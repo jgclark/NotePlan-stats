@@ -6,7 +6,7 @@
 # Script to give stats on various tags in NotePlan's Notes and Daily files.
 #
 # It finds and summarises todos/tasks in note and calendar (D/W/M/Q) files:
-# - only covers active notes (not archived or cancelled)
+# - only covers active notes (not archived or cancelled or paused)
 # - counts open tasks, open undated tasks, done tasks, future tasks
 # - breaks down by Goals/Projects/Other
 # - ignores tasks in a #template section
