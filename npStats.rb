@@ -36,7 +36,6 @@ require 'find'
 DATE_FORMAT = '%d.%m.%y'.freeze
 DATE_TIME_FORMAT = '%d %b %Y %H:%M'.freeze
 FOLDERS_TO_IGNORE = ['@Archive', '@Trash', '@Templates', '@Searches', 'TEST', '@Reviews', 'Saved Searches', 'Summaries', '@WindowSets', '@Demo', '@Forms', '@Meta'].freeze
-DEFAULT_START_DATE = Date.parse('2026-01-01') # for graphing, if no start date given on command line 
 # also set NPEXTRAS environment variable if needed for location of file output
 
 # Constants

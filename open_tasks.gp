@@ -5,7 +5,7 @@
 # JGC, 12.9.2020
 # TODO: change to just go back over last ?6 months?
 
-FILENAME="/Users/jonathan/Dropbox/NPSummaries/task_stats.csv"
+FILENAME="/Users/jonathan/Dropbox/NPSummaries/task_stats_to_graph.csv"
 date=system("date +'%e %b %y'")
 
 # version 1: line charts combined into one

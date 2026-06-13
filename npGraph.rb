@@ -97,9 +97,11 @@ GP_SCRIPTS_DIR = '/Users/jonathan/GitHub/NotePlan-stats'.freeze
 NET_FILENAME = "#{IO_DIR}/tasks_net.csv".freeze
 NET_HEATMAP_FILENAME = "#{IO_DIR}/net_tasks_matrix.csv".freeze
 DONE_HEATMAP_FILENAME = "#{IO_DIR}/done_tasks_matrix.csv".freeze
-NET_LOOKBACK_DAYS = 26 * 7 # 26 weeks
 DONE_PERIOD_WEEKS = 26 # 26 weeks = 6 months
+NET_LOOKBACK_DAYS = DONE_PERIOD_WEEKS * 7 # #days
 DATE_OUT_FORMAT = '%d %b' # when writing new CSVs. Ignoring %Y now.
+OPEN_TASKS_DEFAULT_START_DATE = Date.new(2026, 1, 1) # for open tasks graph, if no start date given on command line
+OPEN_TASKS_OUTPUT_FILENAME = "#{IO_DIR}/task_stats_to_graph.csv".freeze
 
 # Colours, using the colorization gem
 TotalColour = :light_yellow
@@ -145,6 +147,14 @@ opt_parser = OptionParser.new do |opts|
   opts.on('-v', '--verbose', 'Show information as I work') do
     options[:verbose] = 1
   end
+  opts.on('-s', '--start-date DATE', "Start date for output in YYYY-MM-DD format. Defaults to #{OPEN_TASKS_DEFAULT_START_DATE}.") do |date|
+    begin
+      options[:start_date] = Date.parse(date)
+    rescue ArgumentError
+      puts "ERROR: Invalid start date '#{date}'. Use YYYY-MM-DD.".colorize(WarningColour)
+      exit 1
+    end
+  end
   opts.on('-h', '--help', 'Show help') do
     puts opts
     exit
@@ -152,6 +162,7 @@ opt_parser = OptionParser.new do |opts|
 end
 opt_parser.parse! # parse out options, leaving file patterns to process
 $verbose = options[:verbose]
+open_tasks_start_date = options[:start_date] || OPEN_TASKS_DEFAULT_START_DATE
 # puts options
 # exit
 
@@ -284,7 +295,7 @@ begin
 rescue StandardError => e
   puts "ERROR: '#{e.exception.message}' when reading #{IO_DIR}/task_done_dates.csv".colorize(WarningColour)
 end
-start_date = TODAYS_DATE - NET_LOOKBACK_DAYS
+start_date = TODAYS_DATE - (NET_LOOKBACK_DAYS - 1)
 
 # Create hash of added tasks (g/p/a/o) for each day
 addedh = Hash.new { Array.new(4, 0) }
@@ -493,8 +504,36 @@ puts 'ERROR: Hit problem when creating graphs using gnuplot'.colorize(WarningCol
 # From a file: read and parse all at once  (info: https://www.rubyguides.com/2018/10/parse-csv-ruby/)
 # (There are other 'Date' and 'DateTime' converters.)
 begin
-  gpo_table = CSV.parse(File.read(IO_DIR + '/task_stats.csv'), headers: true, converters: :all)
-  puts "Read #{gpo_table.size} items from task_stats.csv into gpo_table"
+  gpao_table = CSV.parse(File.read(IO_DIR + '/task_stats.csv'), headers: true, converters: :all)
+  puts "Read #{gpao_table.size} items from task_stats.csv into gpao_table"
+
+  filtered_rows = gpao_table.select do |row|
+    value = row[0] || row['Date'] || row['date']
+    row_date = case value
+               when Date
+                 value
+               when Time, DateTime
+                 value.to_date
+               else
+                 text = value.to_s.strip
+                 if text =~ /\A\d{1,2} \w+ \d{4}/
+                   Date.strptime(text[0..10], '%d %b %Y')
+                 else
+                   Date.parse(text)
+                 end
+               end
+    row_date >= open_tasks_start_date
+  rescue StandardError
+    false
+  end
+
+  CSV.open(OPEN_TASKS_OUTPUT_FILENAME, 'w') do |csv_file|
+    csv_file << gpao_table.headers
+    filtered_rows.each do |row|
+      csv_file << row
+    end
+  end
+  puts "Written #{filtered_rows.size} rows to #{OPEN_TASKS_OUTPUT_FILENAME}, filtered from start date #{open_tasks_start_date})"
 rescue StandardError => e
   puts "ERROR: '#{e.exception.message}' when reading #{IO_DIR}/task_stats.csv".colorize(WarningColour)
 end
