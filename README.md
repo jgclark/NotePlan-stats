@@ -18,7 +18,9 @@ It writes output to screen and appends to a `task_stats.csv` file in the (new) t
 Run with `npStats -h` to see the command line switches available.
 
 ## npTagStats
-`npTagStats` script gives summary counts of #hashtags and @mentions in NotePlan's daily and weekly calendar files:
+**Note**: this was removed on 2026-06-13 as it was long ago superseded by my **Habits & Summaries plugin**.
+
+<!-- `npTagStats` script gives summary counts of #hashtags and @mentions in NotePlan's daily and weekly calendar files:
 - for #hashtags it simply counts up any it finds from a configurable list, for example `#gym` or `#readbook` 
 - the @mentions counted are of the form `@mention(number)`, e.g. `@work(8)` or `@fruitveg(5)`, this allows simple tracking of numeric items over time, for example hours worked, or number of fruit'n'veg portions eaten. Again, this list is configurable (see below).
 
@@ -27,7 +29,21 @@ There are 2 ways of running this:
 1. with a passed year (e.g. `npTagStats 2021`) or year and month (e.g. `npTagStats 202110`), it will just look in the files for that time period
 2. with no arguments (`npStats'), it will just count the current year, and distinguish dates in the future (where relevant)
 
-It writes output to screen and writes to a `<year>_tag_stats.csv` file, unless the `--nofile` command line option is given. (The location depends which NotePlan storage type you use: it goes in the (new) top-level 'Summaries' directory in NotePlan for iCloud Drive or Dropbox, or instead to a local folder defined by the `NPEXTRAS` environment variable.)
+It writes output to screen and writes to a `<year>_tag_stats.csv` file, unless the `--nofile` command line option is given. (The location depends which NotePlan storage type you use: it goes in the (new) top-level 'Summaries' directory in NotePlan for iCloud Drive or Dropbox, or instead to a local folder defined by the `NPEXTRAS` environment variable.) -->
+
+## npGraph
+`npGraph.rb` generates summary graphs from the `npStats` output CSV files, notably from `task_stats.csv`.
+
+It reads the task statistics produced by `npStats` from the configured `IO_DIR`, which is usually the NotePlan `Summaries` directory or the folder set by `NPEXTRAS` when using CloudKit storage.
+
+The script writes additional CSV matrix files back to the same `IO_DIR`:
+- `tasks_net.csv`
+- `net_tasks_matrix.csv`
+- `done_tasks_matrix.csv`
+
+It also invokes `gnuplot` via the Ruby `gnuplot` gem and uses repository `.gp` graph definition files such as `net_tasks_heatmap.gp` and `done_tasks_heatmap.gp`. Those graph scripts produce PNG files for the heatmap visualisations.
+
+Depending on the `.gp` file configuration, the generated PNG output may be written to the `NPEXTRAS` or NotePlan `Summaries` location, or to the path hardcoded in the `.gp` scripts.
 
 ## Options
 Run either script with `-h` or `--help` to see the command line switches available:

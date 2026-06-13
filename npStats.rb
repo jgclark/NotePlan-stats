@@ -1,19 +1,20 @@
 #!/usr/bin/env ruby
 #-------------------------------------------------------------------------------
 # NotePlan Task Stats Summariser
-# (c) JGC, v1.9.0, 2026-06-13
+# (c) JGC, v2.0.0, 2026-06-13
 #-------------------------------------------------------------------------------
 # Script to give stats on various tags in NotePlan's Notes and Daily files.
 #
-# It finds and summarises todos/tasks in note and calendar (D/W/M/Q) files:
+# It finds and summarises tasks in note and calendar (D/W/M/Q) files:
 # - only covers active notes (not archived or cancelled or paused)
 # - counts open tasks, open undated tasks, done tasks, future tasks
-# - breaks down by Goals/Projects/Other
+# - ignore checklists
+# - breaks down by Goals/Projects/Areas/Other
 # - ignores tasks in a #template section
-# - cannot read notes in (Team)Spaces folders
+# - it cannot read notes in (Team)Spaces folders
 #
 # It writes output to screen and to CSV files:
-# - current summary of all G/P/O open/done/future to task_stats.csv
+# - current summary of all G/P/A/O open/done/future to task_stats.csv
 # - re-calculated list of all done tasks by date to task_done_dates.csv
 #
 # Configuration:
@@ -23,7 +24,7 @@
 # For more information please see the GitHub repository:
 #   https://github.com/jgclark/NotePlan-stats/
 #-------------------------------------------------------------------------------
-VERSION = '1.9.0'.freeze
+VERSION = '2.0.0'.freeze
 
 require 'date'
 require 'time'
@@ -34,7 +35,8 @@ require 'find'
 # User-settable constants
 DATE_FORMAT = '%d.%m.%y'.freeze
 DATE_TIME_FORMAT = '%d %b %Y %H:%M'.freeze
-FOLDERS_TO_IGNORE = ['@Archive', '@Trash', '@Templates', '@Searches', 'TEST', '@Reviews', 'Saved Searches', 'Summaries', '@WindowSets', '@Demo', '@Forms', '@Meta'].freeze 
+FOLDERS_TO_IGNORE = ['@Archive', '@Trash', '@Templates', '@Searches', 'TEST', '@Reviews', 'Saved Searches', 'Summaries', '@WindowSets', '@Demo', '@Forms', '@Meta'].freeze
+DEFAULT_START_DATE = Date.parse('2026-01-01') # for graphing, if no start date given on command line 
 # also set NPEXTRAS environment variable if needed for location of file output
 
 # Constants
@@ -162,6 +164,7 @@ end
 def build_metadata_text(attributes, legacy_metadata_line, body_metadata_line)
   parts = []
   parts << attributes['project'] if attributes['project'] && !attributes['project'].empty?
+  # parts << attributes['area'] if attributes['area'] && !attributes['area'].empty?
   parts << attributes['metadata'] if attributes['metadata'] && !attributes['metadata'].empty?
   parts << legacy_metadata_line.strip if legacy_metadata_line && !legacy_metadata_line.strip.empty?
   parts << body_metadata_line.strip if body_metadata_line && !body_metadata_line.strip.empty?
@@ -318,6 +321,7 @@ class NPNote
   attr_reader :is_cancelled
   attr_reader :is_project
   attr_reader :is_goal
+  attr_reader :is_area
   attr_reader :metadata_line
   attr_reader :open_overdue
   attr_reader :waiting
@@ -339,6 +343,7 @@ class NPNote
     @completed_date = nil
     @is_project = false
     @is_goal = false
+    @is_area = false
     @done_dates = Hash.new(0) # Hash of dates for this note, with new items defaulting to zero
 
     log_message_screen("  Initializing NPNote for #{this_file}")
@@ -369,8 +374,9 @@ class NPNote
     @is_active = status[:is_active]
 
     # Note if this is a #project or #goal
-    @is_project = true if @metadata_line =~ /#project/
     @is_goal    = true if @metadata_line =~ /#goal/
+    @is_project = true if @metadata_line =~ /#project/
+    @is_area    = true if @metadata_line =~ /#area/
 
     log_message_screen("    metadata='#{@metadata_line}' active=#{@is_active} goal=#{@is_goal} project=#{@is_project}") if $verbose
 
@@ -479,6 +485,7 @@ notes = [] # all notes
 activeNotes = [] # list of ID of all active notes
 tgdh = Hash.new(0)
 tpdh = Hash.new(0)
+tadh = Hash.new(0)
 todh = Hash.new(0)
 
 # Read metadata for all note files in the NotePlan directory
@@ -519,13 +526,13 @@ rescue StandardError => e
 end
 
 # Count open (overdue) tasks, open undated, waiting, done tasks, future tasks
-# broken down by Goals/Projects/Other.
-ton = tpn = tgn = 0
-tod = tpd = tgd = 0
-too = tpo = tgo = 0
-tou = tpu = tgu = 0
-tow = tpw = tgw = 0
-tof = tpf = tgf = 0
+# broken down by Goals/Projects/Areas/Other.
+ton = tpn = tgn = tan = 0
+tod = tpd = tgd = tad = 0
+too = tpo = tgo = tao = 0
+tou = tpu = tgu = tau = 0
+tow = tpw = tgw = taw = 0
+tof = tpf = tgf = taf = 0
 
 if notes_to_work_on.positive? # if we have some notes to work on ...
   activeNotes.each do |nn|
@@ -548,6 +555,14 @@ if notes_to_work_on.positive? # if we have some notes to work on ...
       tpu += n.open_undated
       tpw += n.waiting
       tpf += n.future
+    elsif n.is_area
+      tan += 1
+      tad += n.done
+      tadh.merge!(ddh) { |_key, oldval, newval| oldval + newval }
+      tao += n.open_overdue
+      tau += n.open_undated
+      taw += n.waiting
+      taf += n.future
     else
       ton += 1
       tod += n.done
@@ -605,18 +620,19 @@ unless options[:no_calendar]
 end
 
 # Sum all the counts from Notes and Daily files
-tn = ton + tpn + tgn
-td = tod + tpd + tgd
-to = too + tpo + tgo
-tu = tou + tpu + tgu
-tw = tow + tpw + tgw
-tf = tof + tpf + tgf
+tn = ton + tpn + tgn + tan
+td = tod + tpd + tgd + tad
+to = too + tpo + tgo + tao
+tu = tou + tpu + tgu + tau
+tw = tow + tpw + tgw + taw
+tf = tof + tpf + tgf + taf
 
 # Show results on screen
 message_screen("From #{activeNotes.count} active notes:")
 main_message_screen("\tNotes\tDone\tOverdue\tUndated\tWaiting\tFuture")
 message_screen("Goals\t#{tgn}\t#{tgd}\t#{tgo}\t#{tgu}\t#{tgw}\t#{tgf}")
 message_screen("Project\t#{tpn}\t#{tpd}\t#{tpo}\t#{tpu}\t#{tpw}\t#{tpf}")
+message_screen("Area\t#{tan}\t#{tad}\t#{tao}\t#{tau}\t#{taw}\t#{taf}")
 message_screen("Other\t#{ton}\t#{tod}\t#{too}\t#{tou}\t#{tow}\t#{tof}")
 main_message_screen("TOTAL\t#{tn}\t#{td}\t#{to}\t#{tu}\t#{tw}\t#{tf}")
 
@@ -626,10 +642,11 @@ main_message_screen("TOTAL\t#{tn}\t#{td}\t#{to}\t#{tu}\t#{tw}\t#{tf}")
 
 unless options[:no_file]
   begin
-    output = format('%s,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d',
-                    time_now_format, tgn, tpn, ton,
+    output = format('%s,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d',
+                    time_now_format, tgn, tpn, tan, ton,
                     tgd, tgo, tgu, tgw, tgf,
                     tpd, tpo, tpu, tpw, tpf,
+                    tad, tao, tau, taw, taf,
                     tod, too, tou, tow, tof,
                     td, to, tu, tw, tf)
     filepath = OUTPUT_DIR + '/task_stats.csv'
@@ -648,6 +665,7 @@ end
 # sort the hashes, which turns them into arrays
 ddga = tgdh.sort
 ddpa = tpdh.sort
+ddaa = tadh.sort
 ddoa = todh.sort
 # earliest_orddate = ddga[0][0].to_i < ddpa[0][0].to_i ? ddga[0][0].to_i : ddpa[0][0].to_i
 # earliest_orddate = earliest_orddate.to_i < ddoa[0][0].to_i ? earliest_orddate.to_i : ddoa[0][0].to_i
@@ -656,15 +674,18 @@ ddoa = todh.sort
 
 # now append these three arrays onto a single one, with data in correct one of three columns,
 # with the key (the ordinal date) in column 0
-done_dates = Array.new { Array.new(4, 0) }
+done_dates = Array.new { Array.new(5, 0) }
 ddga.each do |aa|
-  done_dates += [[aa[0], aa[1], 0, 0]]
+  done_dates += [[aa[0], aa[1], 0, 0, 0]]
 end
 ddpa.each do |aa|
-  done_dates += [[aa[0], 0, aa[1], 0]]
+  done_dates += [[aa[0], 0, aa[1], 0, 0]]
+end
+ddaa.each do |aa|
+  done_dates += [[aa[0], 0, 0, aa[1], 0]]
 end
 ddoa.each do |aa|
-  done_dates += [[aa[0], 0, 0, aa[1]]]
+  done_dates += [[aa[0], 0, 0, 0, aa[1]]]
 end
 
 # Now do similarly for $cal_done_dates (all go just to the 'other' category)
@@ -672,7 +693,7 @@ unless options[:no_calendar]
   cdo = 0
   $cal_done_dates.each do |cdd|
     cdo += cdd[1]
-    done_dates += [[cdd[0], 0, 0, cdd[1]]]
+    done_dates += [[cdd[0], 0, 0, 0, cdd[1]]]
   end
   log_message_screen("\nFound #{cdo} done tasks from #{$cal_done_dates.size} daily notes")
 end
@@ -683,12 +704,14 @@ previous_key = 0
 previous_col1 = 0
 previous_col2 = 0
 previous_col3 = 0
+previous_col4 = 0
 i = 0
 dds.each do |row|
   if previous_key == row[0]
     row[1] += previous_col1
     row[2] += previous_col2
     row[3] += previous_col3
+    row[4] += previous_col4
     # Mark this row for deletion by setting to zero. (Trying to delete in place mucks up the loop positioning.)
     dds[i - 1][0] = 0
   end
@@ -696,6 +719,7 @@ dds.each do |row|
   previous_col1 = row[1]
   previous_col2 = row[2]
   previous_col3 = row[3]
+  previous_col4 = row[4]
   i += 1
 end
 # now remove the row set to delete
@@ -711,7 +735,7 @@ unless options[:no_file]
     filepath = OUTPUT_DIR + '/task_done_dates.csv'
     f = File.open(filepath, 'w') # overwrite
     total_done_count = 0
-    f.puts 'Date,Goals,Projects,Others' # headers
+    f.puts 'Date,Goals,Projects,Areas,Others' # headers
     done_dates.each do |d|
       date_temp = Date.strptime(d[0], '%Y%j') # we only want the first item, but don't know why it needs to be first of the first
       # ignore this date if its in the future
@@ -719,8 +743,8 @@ unless options[:no_file]
 
       # convert date from ordinal back to YYYY-MM-DD
       date_YMD = date_temp.strftime('%Y-%m-%d')
-      f.puts "#{date_YMD},#{d[1]},#{d[2]},#{d[3]}"
-      total_done_count += d[1] + d[2] + d[3]
+      f.puts "#{date_YMD},#{d[1]},#{d[2]},#{d[3]},#{d[4]}"
+      total_done_count += d[1] + d[2] + d[3] + d[4]
     end
     f.close
     message_screen("Written summary of when the #{total_done_count} tasks were completed to #{OUTPUT_DIR}/task_done_dates.csv")

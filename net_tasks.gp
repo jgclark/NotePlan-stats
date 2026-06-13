@@ -43,12 +43,12 @@ show xzeroaxis
 # do main plot, summing together first 2 types to make it look like proper stacked
 # where 'added' tasks would go the wrong side of the origin, make zero instead
 set output "/Users/jonathan/Dropbox/NPSummaries/net_tasks.png"
-plot DATAFILE using 1:($5+$6+$7) bins=bins_to_use with boxes lc "#40ee40" title "Completed Other tasks",\
- "" using 1:($5+$6) bins=bins_to_use with boxes lc "#4d4df0" title "Completed Project tasks",\
- "" using 1:($5) bins=bins_to_use with boxes lc "#f04040" title "Completed Goal tasks",\
- "" using 1:10 with lines lw 2 lc "#10ce10" title "Cum. Other (net)",\
- "" using 1:9 with lines lw 2 lc "#1010f0" title "Cum. Project (net)",\
- "" using 1:8 with lines lw 2 lc "#c01010" title "Cum. Goal (net)"
+plot DATAFILE using (column("Date")):(column("DoneOthers")+column("DoneProjects")+column("DoneGoals")) bins=bins_to_use with boxes lc "#40ee40" title "Completed Other tasks",\
+ "" using (column("Date")):(column("DoneProjects")+column("DoneGoals")) bins=bins_to_use with boxes lc "#4d4df0" title "Completed Project tasks",\
+ "" using (column("Date")):column("DoneGoals") bins=bins_to_use with boxes lc "#f04040" title "Completed Goal tasks",\
+ "" using (column("Date")):column("NetO") with lines lw 2 lc "#10ce10" title "Cum. Other (net)",\
+ "" using (column("Date")):column("NetP") with lines lw 2 lc "#1010f0" title "Cum. Project (net)",\
+ "" using (column("Date")):column("NetG") with lines lw 2 lc "#c01010" title "Cum. Goal (net)"
 #  "" using 1:((-$2-$3-$4)<0 ? (-$2-$3-$4) : 0) bins=bins_to_use with boxes lc "#90ee90" title "Added Other tasks",\
 #  "" using 1:((-$2-$3)<0 ? (-$2-$3) : 0) bins=bins_to_use with boxes lc "#9090f0" title "Added Project tasks",\
 #  "" using 1:((-$2)<0 ? (-$2) : 0) bins=bins_to_use with boxes lc "#f0a2a2" title "Added Goal tasks",\

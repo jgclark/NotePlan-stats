@@ -8,13 +8,16 @@
 # It finds statistics from the IO_DIR/task_stats.csv file.
 # It creates graphs (.png files) summarising these statistics.
 #
-# It uses the 'googlecharts' gem, but it's no longer maintained.
+# It *used* to use the 'googlecharts' gem, but it's no longer maintained.
 # - See intro at https://github.com/mattetti/googlecharts
 # - and library docs at https://www.rubydoc.info/gems/googlecharts/1.6.12/Gchart
 # - need to consult internet archive for more helpful detail:
 #   https://web.archive.org/web/20170305075702/http://googlecharts.rubyforge.org/
 # - NB: It doesn't cover the whole of Google's Chart system.
 # - can't see other
+#
+# It now uses gnuplot instead, which is installed via Homebrew on macOS:
+#   brew install gnuplot
 #
 # Other options?
 # - http://googlevisualr.herokuapp.com/examples/interactive/annotation_chart produces SVG and 5 years old
@@ -42,9 +45,10 @@
 # You'll notice that the green and red bars are the same size: they both use column 2. If you don't want the first (red) bar to appear, you could change the plot command to
 # plot 'test.dat' using 2:xtic(1) title 'Col1', '' using 3 title 'Col2', '' using 4 title 'Col3'
 # With this command, the xtic labels will stay the same, and the first bar will no longer be there. Note that the colors for the data will change with this command, since the first thing plotted will be red, the second green and the third blue.
+# From v0.9 of this script, the .gp files use column titles, not column numbers, so that the data can be more easily understood and modified.
 #-------------------------------------------------------------------------------
 
-VERSION = '0.8.2'.freeze
+VERSION = '1.0.0'.freeze
 
 require 'date'
 require 'time'
@@ -161,9 +165,10 @@ $verbose = options[:verbose]
 # Do graphs of totals/averages from hashtags or mentions
 # -----------------------------------------------------------------------------------
 
-gp_call_params = 'mentions.gp'
-gp_call_result = system("#{GP_CALL} '#{gp_call_params}'")
-puts 'ERROR: Hit problem when creating graphs using gnuplot'.colorize(WarningColour) unless gp_call_result
+# Now turned off as I've developed the Habits & Summaries plugin instead.
+# gp_call_params = 'mentions.gp'
+# gp_call_result = system("#{GP_CALL} '#{gp_call_params}'")
+# puts 'ERROR: Hit problem when creating graphs using gnuplot'.colorize(WarningColour) unless gp_call_result
 
 # -----------------------------------------------------------------------------------
 # Do graphs of when tasks were completed
@@ -281,29 +286,39 @@ rescue StandardError => e
 end
 start_date = TODAYS_DATE - NET_LOOKBACK_DAYS
 
-# Create hash of added tasks (g/p/o) for each day
-addedh = Hash.new { Array.new(3, '') } # NOTE: was (3,0), but trying blank ...
-last_gt = last_pt = last_ot = 0
+# Create hash of added tasks (g/p/a/o) for each day
+addedh = Hash.new { Array.new(4, 0) }
+last_gt = last_pt = last_at = last_ot = 0
 stats_table.each do |st| # FIXME: can be nil with missing data?
   # puts "working out added for #{st}"
   d = Date.strptime(st[0][0..10], "%d %b %Y") # ignore time portion of datetime string
   next unless d >= start_date
 
-  addedh.store(d.to_s, [st[4] + st[5] + st[6] + st[7] + st[8] - last_gt,
-                        st[9] + st[10] + st[11] + st[12] + st[13] - last_pt,
-                        st[14] + st[15] + st[16] + st[17] + st[18] - last_ot])
-  last_gt = st[4] + st[5] + st[6] + st[7] + st[8]
-  last_pt = st[9] + st[10] + st[11] + st[12] + st[13]
-  last_ot = st[14] + st[15] + st[16] + st[17] + st[18]
+  safe = ->(idx) { (st[idx] || 0).to_i }
+  goal_total = safe.call(5) + safe.call(6) + safe.call(7) + safe.call(8) + safe.call(9)
+  project_total = safe.call(10) + safe.call(11) + safe.call(12) + safe.call(13) + safe.call(14)
+  area_total = safe.call(15) + safe.call(16) + safe.call(17) + safe.call(18) + safe.call(19)
+  other_total = safe.call(20) + safe.call(21) + safe.call(22) + safe.call(23) + safe.call(24)
+
+  addedh.store(d.to_s, [
+    goal_total - last_gt,
+    project_total - last_pt,
+    area_total - last_at,
+    other_total - last_ot
+  ])
+  last_gt = goal_total
+  last_pt = project_total
+  last_at = area_total
+  last_ot = other_total
 end
 
-# Create hash of done tasks (g/p/o) for each day
-doneh = Hash.new { Array.new(3, 0) }
+# Create hash of done tasks (g/p/a/o) for each day
+doneh = Hash.new { Array.new(4, 0) }
 done_table.each do |dt|
   d = dt[0]
   next unless d >= start_date
 
-  doneh.store(d.to_s[0..9], [dt[1], dt[2], dt[3]])
+  doneh.store(d.to_s[0..9], [dt[1], dt[2], dt[3], dt[4] || 0])
 end
 
 # # Create summary array to write out
@@ -371,10 +386,10 @@ while current_day < TODAYS_DATE
                                    current_day.strftime('%Y')
                                  end
   end
-  data_done = doneh.fetch(current_day.to_s, [0, 0, 0]) # get data, defaulting to zeros
-  data_added = addedh.fetch(current_day.to_s, [0, 0, 0]) # get data, defaulting to zeros
+  data_done = doneh.fetch(current_day.to_s, [0, 0, 0, 0]) # get data, defaulting to zeros
+  data_added = addedh.fetch(current_day.to_s, [0, 0, 0, 0]) # get data, defaulting to zeros
 
-  calc = (data_done[0] + data_done[1] + data_done[2]) - (data_added[0] + data_added[1] + data_added[2]) # all done - all added
+  calc = data_done.sum - data_added.sum # all done - all added
   net_grida[week_counter][day_of_week] = calc
   current_day += 1
 end
@@ -437,8 +452,8 @@ while current_day < TODAYS_DATE
                                     current_day.strftime('%Y')
                                   end
   end
-  data = doneh.fetch(current_day.to_s, [0, 0, 0]) # get data, defaulting to zeros
-  calc = data[0] + data[1] + data[2] # for now save sum of G+P+O tasks completed TODO: change in time
+  data = doneh.fetch(current_day.to_s, [0, 0, 0, 0]) # get data, defaulting to zeros
+  calc = data.sum # for now save sum of G+P+A+O tasks completed TODO: change in time
   done_grida[week_counter][day_of_week] = calc
   current_day += 1
 end

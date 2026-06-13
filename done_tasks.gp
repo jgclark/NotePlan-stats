@@ -128,9 +128,9 @@ set xtics scale 1,0 out center nomirror
 set ytics scale 1,0 out nomirror 
 # do main plot, summing together first 2 types to make it look like proper stacked
 set output "done_tasks.png"
-plot FILENAME using 1:($4+$3+$2) bins=bins_to_use with boxes lc rgb "light-green", \
-  "" using 1:($3+$2) bins=bins_to_use with boxes lc rgb "blue", \
-  "" using 1:2 bins=bins_to_use with boxes lc rgb "red"
+plot FILENAME using (column("Date")):(column("Others")+column("Projects")+column("Goals")) bins=bins_to_use with boxes lc rgb "light-green", \
+  "" using (column("Date")):(column("Projects")+column("Goals")) bins=bins_to_use with boxes lc rgb "blue", \
+  "" using (column("Date")):column("Goals") bins=bins_to_use with boxes lc rgb "red"
 
 exit
 

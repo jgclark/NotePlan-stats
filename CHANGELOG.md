@@ -1,6 +1,9 @@
 # CHANGELOG
 
 ## for npStats
+## v2.0.0, 2026-06-13
+- Now output stats for Areas to the task_stats.csv file
+
 ## v1.9.0, 2026-06-13
 - Now finds project/area/goal notes, and cancelled/completed status by looking in **frontmatter** as well as the single 'metadata line' at the top of a note.
 - Add more folders to ignore
@@ -87,10 +90,19 @@ Initial load into this GitHub project.
 
 ---
 
-## for npTagStats
-Note: this was deleted on 2026-06-13 as it was long ago superseded by my **Habits & Summaries plugin**, and was now significantly out of date.
+## for npGraph
+### v1.0.0
+- update to include Area stats in the output "Open tasks" graph
 
-### v1.7.1, 1.1.2023
+### v0.8.x
+...
+
+---
+
+## for npTagStats
+**Note**: this was deleted on 2026-06-13 as it was long ago superseded by my **Habits & Summaries plugin**, and was now significantly out of date.
+
+<!-- ### v1.7.1, 1.1.2023
 - [New] Adds support for NotePlan's new monthly, quarterly and yearly notes
 
 ### v1.7.0, 25.9.2022
@@ -143,4 +155,4 @@ Note: this was deleted on 2026-06-13 as it was long ago superseded by my **Habit
 - Code clean up, following rubocop
 
 ## v1.1, 29.2.2020
-- Split a single earlier script into these two.
+- Split a single earlier script into these two. -->
