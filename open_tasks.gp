@@ -1,9 +1,11 @@
 # gnuplot specification to plot how many open tasks there are over time,
 # differentiating goal/projects/area/other.
 # Also plot % tasks completed for each type.
-# uses Gnuplot 5.2, but would probaby work back to Gnuplot 4.8
-# JGC, 12.9.2020
-# TODO: change to just go back over last ?6 months?
+# Uses Gnuplot, and needs to be 5.x or later.
+# JGC, 2026-06-14
+
+# Expected CSV header row:
+# Timestamp,GoalNotes,ProjectNotes,AreaNotes,OtherNotes,GoalDone,GoalOverdue,GoalUndated,GoalWaiting,GoalFuture,ProjectDone,ProjectOverdue,ProjectUndated,ProjectWaiting,ProjectFuture,AreaDone,AreaOverdue,AreaUndated,AreaWaiting,AreaFuture,OtherDone,OtherOverdue,OtherUndated,OtherWaiting,OtherFuture,TotalDone,TotalOverdue,TotalUndated,TotalWaiting,TotalFuture
 
 FILENAME="/Users/jonathan/Dropbox/NPSummaries/task_stats_to_graph.csv"
 date=system("date +'%e %b %y'")
@@ -99,18 +101,18 @@ set output "/Users/jonathan/Dropbox/NPSummaries/open_tasks.png"
 set y2range [0:100]
 set multiplot title sprintf("Open tasks in NotePlan (at %s)", date) font "Avenir,12" layout 4,1 downwards spacing 0,0
 
-plot FILENAME using 1:($7+$8+$9) with lines ls 1 axes x1y1 title '# Goal tasks open', \
-  "" using 1:2 with lines ls 7 axes x1y1 title '# Goals open', \
-  "" using 1:(($6)/($6+$7+$8+$9)*100) with lines ls 2 axes x1y2 title '% tasks complete'
-plot FILENAME using 1:($11+$12+$13) with lines ls 3 axes x1y1 title '# Project tasks open', \
-  "" using 1:3 with lines ls 7 axes x1y1 title '# Projects open', \
-  "" using 1:(($10)/($10+$11+$12+$13)*100) with lines ls 4 axes x1y2 title '% tasks complete'
-plot FILENAME using 1:($17+$18+$19) with lines ls 5 axes x1y1 title '# Area tasks open', \
-  "" using 1:4 with lines ls 7 axes x1y1 title '# Areas open', \
-  "" using 1:(($16)/($16+$17+$18+$19)*100) with lines ls 6 axes x1y2 title '% tasks complete'
+plot FILENAME using "Timestamp":(column("GoalOverdue")+column("GoalUndated")+column("GoalWaiting")) with lines ls 1 axes x1y1 title '# Goal tasks open', \
+  "" using "Timestamp":"GoalNotes" with lines ls 7 axes x1y1 title '# Goals open', \
+  "" using "Timestamp":(column("GoalDone")/(column("GoalDone")+column("GoalOverdue")+column("GoalUndated")+column("GoalWaiting"))*100) with lines ls 2 axes x1y2 title '% tasks complete'
+plot FILENAME using "Timestamp":(column("ProjectOverdue")+column("ProjectUndated")+column("ProjectWaiting")) with lines ls 3 axes x1y1 title '# Project tasks open', \
+  "" using "Timestamp":"ProjectNotes" with lines ls 7 axes x1y1 title '# Projects open', \
+  "" using "Timestamp":(column("ProjectDone")/(column("ProjectDone")+column("ProjectOverdue")+column("ProjectUndated")+column("ProjectWaiting"))*100) with lines ls 4 axes x1y2 title '% tasks complete'
+plot FILENAME using "Timestamp":(column("AreaOverdue")+column("AreaUndated")+column("AreaWaiting")) with lines ls 5 axes x1y1 title '# Area tasks open', \
+  "" using "Timestamp":"AreaNotes" with lines ls 7 axes x1y1 title '# Areas open', \
+  "" using "Timestamp":(column("AreaDone")/(column("AreaDone")+column("AreaOverdue")+column("AreaUndated")+column("AreaWaiting"))*100) with lines ls 6 axes x1y2 title '% tasks complete'
 set xtics out nomirror font ",8"
 set yrange [0:*]
-plot FILENAME using 1:($21+$22+$23) with lines ls 8 axes x1y1 title '# Other tasks open', \
-  "" using 1:5 with lines ls 9 axes x1y1 title '# Other open notes', \
-  "" using 1:(($20)/($20+$21+$22+$23)*100) with lines ls 10 axes x1y2 title '% tasks complete'
+plot FILENAME using "Timestamp":(column("OtherOverdue")+column("OtherUndated")+column("OtherWaiting")) with lines ls 8 axes x1y1 title '# Other tasks open', \
+  "" using "Timestamp":"OtherNotes" with lines ls 9 axes x1y1 title '# Other open notes', \
+  "" using "Timestamp":(column("OtherDone")/(column("OtherDone")+column("OtherOverdue")+column("OtherUndated")+column("OtherWaiting"))*100) with lines ls 10 axes x1y2 title '% tasks complete'
 unset multiplot
