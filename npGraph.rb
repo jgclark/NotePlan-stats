@@ -48,7 +48,7 @@
 # From v0.9 of this script, the .gp files use column titles, not column numbers, so that the data can be more easily understood and modified.
 #-------------------------------------------------------------------------------
 
-VERSION = '1.1.0'.freeze
+VERSION = '1.1.1'.freeze
 
 require 'date'
 require 'time'
@@ -57,8 +57,16 @@ require 'colorize' # for coloured output using https://github.com/fazibear/color
 require 'optparse'
 # require 'googlecharts'
 require 'csv' # basic help at https://www.rubyguides.com/2018/10/parse-csv-ruby/
-require 'array_arithmetic' # info at https://github.com/CJAdeszko/array_arithmetic
-require 'gnuplot'
+begin
+  require 'array_arithmetic' # info at https://github.com/CJAdeszko/array_arithmetic
+rescue LoadError
+  # The gem is optional for this script; the array arithmetic code is currently commented out.
+end
+begin
+  require 'gnuplot'
+rescue LoadError
+  # The Ruby gem is optional here; the script can still print help or use the external gnuplot binary.
+end
 
 # Constants
 USER_DIR = ENV['HOME'] # pull home directory from environment
@@ -66,22 +74,32 @@ NPEXTRAS = ENV['NPEXTRAS'] # save in user-specified directory as it won't be syn
 DROPBOX_DIR = "#{USER_DIR}/Dropbox/Apps/NotePlan/Documents".freeze
 ICLOUDDRIVE_DIR = "#{USER_DIR}/Library/Mobile Documents/iCloud~co~noteplan~NotePlan/Documents".freeze
 CLOUDKIT_DIR = "#{USER_DIR}/Library/Containers/co.noteplan.NotePlan3/Data/Library/Application Support/co.noteplan.NotePlan3".freeze
+
+# Check that a candidate path looks like a NotePlan data directory (Notes/ or Calendar/ present).
+def np_storage_valid?(base_dir)
+  return false unless base_dir && Dir.exist?(base_dir)
+
+  Dir.exist?(File.join(base_dir, 'Notes')) || Dir.exist?(File.join(base_dir, 'Calendar'))
+end
+
+# Prefer the CloudKit location when it contains NotePlan data; otherwise fall back to iCloud/Dropbox.
+def determine_np_base_dir
+  [CLOUDKIT_DIR, ICLOUDDRIVE_DIR, DROPBOX_DIR].each do |candidate|
+    return candidate if np_storage_valid?(candidate)
+  end
+  nil
+end
+
 # NB: a user-set directory, not the usual CloudKit directory, as non-NotePlan folders won't sync from it.
-puts CLOUDKIT_DIR
-NP_BASE_DIR = if Dir.exist?(CLOUDKIT_DIR) && Dir[File.join(CLOUDKIT_DIR, '**', '*')].count { |file| File.file?(file) } > 1
-                CLOUDKIT_DIR
-              elsif Dir.exist?(ICLOUDDRIVE_DIR) && Dir[File.join(ICLOUDDRIVE_DIR, '**', '*')].count { |file| File.file?(file) } > 1
-                ICLOUDDRIVE_DIR
-              elsif Dir.exist?(DROPBOX_DIR) && Dir[File.join(DROPBOX_DIR, '**', '*')].count { |file| File.file?(file) } > 1
-                DROPBOX_DIR
-              end
-puts NP_BASE_DIR
-IO_DIR = if Dir.exist?(CLOUDKIT_DIR) && Dir[File.join(CLOUDKIT_DIR, '**', '*')].count { |file| File.file?(file) } > 1
-           NPEXTRAS
-         else
+NP_BASE_DIR = determine_np_base_dir
+IO_DIR = if NP_BASE_DIR == CLOUDKIT_DIR
+           (NPEXTRAS || "#{NP_BASE_DIR}/Summaries").freeze
+         elsif NP_BASE_DIR
            "#{NP_BASE_DIR}/Summaries".freeze # but otherwise can store in Summaries/ directory in NP
+         else
+           "#{USER_DIR}/Summaries".freeze
          end
-puts IO_DIR
+
 # Allow for both M1 and Intel versions of Homebrew
 GP_CALL = if Dir.exist?("/opt/homebrew/bin")
                 "/opt/homebrew/bin/gnuplot"
